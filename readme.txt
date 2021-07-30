@@ -3,7 +3,7 @@ Contributors: williamonshippit
 Donate link: NA
 Tags: shipping, australia post, couriers please, fastway, shipping method,
 Requires at least: 3.0.0
-Tested up to: 5.2.2
+Tested up to: 5.7.2
 Stable tag: stable
 License: GPLv2 or later
 
@@ -59,6 +59,21 @@ Go to www.shippit.com and sign up for an account. We will email you an API key
 3. You and your customers can track their deliveries simply, elegantly and easily
 
 == Changelog ==
+
+= 1.6.3 =
+
+- Changes
+-- Improve handling on `api_key` or `webhook` setting updates
+
+= 1.6.2 =
+
+- Changes
+-- Removed `state/region` as a required field for live quotes, ensuring live quotes are available in countries without states/regions.
+
+= 1.6.1 =
+
+- Changes
+-- We have validated this release for WooCommerce version v5.4, and Wordpress v5.7.2
 
 = 1.6.0 =
 
