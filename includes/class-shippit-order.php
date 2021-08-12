@@ -32,6 +32,7 @@ class Mamis_Shippit_Order
         $this->s = new Mamis_Shippit_Settings();
         $this->helper = new Mamis_Shippit_Helper();
         $this->woocommerce = $GLOBALS['woocommerce'];
+        $this->log = new Mamis_Shippit_Log();
     }
 
     /**
@@ -221,7 +222,8 @@ class Mamis_Shippit_Order
                 array(
                     'key' => '_mamis_shippit_sync',
                     'value' => 'false',
-                    'compare' => '='
+                    'compare' => '=',
+                    'num_posts' => -1
                 )
             ),
         );
@@ -229,7 +231,17 @@ class Mamis_Shippit_Order
         // Get all woocommerce orders that are processing
         $orderPosts = get_posts($orderPostArg);
 
+        $this->log->add(
+            'syncOrders',
+            'syncOrders running for '.count($orderPosts).' orders. '
+        );
+
         foreach ($orderPosts as $orderPost) {
+            $this->log->add(
+                'syncOrders',
+                'syncOrder '.$orderPost->ID.''
+            );
+
             $this->syncOrder($orderPost->ID);
         }
     }
@@ -275,7 +287,7 @@ class Mamis_Shippit_Order
 
         // Create the schedule for the orders to sync
         // WP expects UTC time -- not local time 
-        wp_schedule_single_event(time(), 'syncOrders');
+        wp_schedule_single_event(time(), 'syncOrders', 'bulk-sync');
 
         $logger = wc_get_logger();
         $loggerContext = array( 'source' => 'shippit' );
