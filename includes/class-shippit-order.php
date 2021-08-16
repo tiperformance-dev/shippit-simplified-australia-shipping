@@ -222,10 +222,10 @@ class Mamis_Shippit_Order
                 array(
                     'key' => '_mamis_shippit_sync',
                     'value' => 'false',
-                    'compare' => '=',
-                    'num_posts' => -1
+                    'compare' => '='
                 )
             ),
+            'numberposts' => -1,
         );
 
         // Get all woocommerce orders that are processing

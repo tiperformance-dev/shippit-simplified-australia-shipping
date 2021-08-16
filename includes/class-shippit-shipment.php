@@ -229,7 +229,7 @@ class Mamis_Shippit_Shipment
         }
 
         // Add order comment for when items are shipped
-        $orderComment = 'The following items have been marked as Shipped in Shippit..<br>';
+        $orderComment = 'The following items have been marked as Shipped in Shippit:<br>';
         $orderItemsShipped = array();
 
         foreach ($requestItems as $requestItem) {

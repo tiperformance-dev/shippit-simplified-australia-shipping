@@ -62,9 +62,9 @@ class Mamis_Shippit_Log
     */
     public function exception($exception)
     {
-                    // Updated to use WC_Logger
-                    $logger = wc_get_logger();
-                    $loggerContext = array( 'source' => 'shippit' );
-                    $logger->error($exception->getMessage());
+        // Updated to use WC_Logger
+        $logger = wc_get_logger();
+        $loggerContext = array( 'source' => 'shippit' );
+        $logger->error($exception->getMessage());
     }
 }
