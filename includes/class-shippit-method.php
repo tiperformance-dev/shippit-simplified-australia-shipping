@@ -233,7 +233,8 @@ class Mamis_Shippit_Method extends WC_Shipping_Method
             'dropoff_postcode' => $dropoffPostcode,
             'dropoff_state' => $dropoffState,
             'dropoff_country_code' => $dropoffCountryCode,
-            'parcel_attributes' => $this->getParcelAttributes($items)
+            'parcel_attributes' => $this->getParcelAttributes($items),
+            'return_all_quotes' => true
         );
 
         if ($dropoffSuburb === "" || $dropoffPostcode === "") {
@@ -321,8 +322,8 @@ class Mamis_Shippit_Method extends WC_Shipping_Method
 
             $rate = array(
                 // unique id for each rate
-                'id'    => 'Mamis_Shippit_' . $shippingQuote->service_level,
-                'label' => ucwords($shippingQuote->service_level." Courier"),
+                'id'    => 'Mamis_Shippit_' . $shippingQuote->courier_type,
+                'label' => $this->helper->getFriendlyCourierName($shippingQuote->courier_type,$shippingQuote->service_level), //ucwords($shippingQuote->service_level." Courier"),
                 'cost' => $quotePrice,
                 'meta_data' => array(
                     'service_level' => $shippingQuote->service_level,
@@ -340,8 +341,8 @@ class Mamis_Shippit_Method extends WC_Shipping_Method
             $quotePrice = $this->_getQuotePrice($quote->price);
 
             $rate = array(
-                'id'    => 'Mamis_Shippit_' . $shippingQuote->service_level,
-                'label' => ucwords($shippingQuote->service_level." Courier"),
+                'id'    => 'Mamis_Shippit_' . $shippingQuote->courier_type,
+                'label' => $this->helper->getFriendlyCourierName($shippingQuote->courier_type,$shippingQuote->service_level), //ucwords($shippingQuote->service_level." Courier"),
                 'cost' => $quotePrice,
                 'meta_data' => array(
                     'service_level' => $shippingQuote->service_level,
@@ -374,6 +375,7 @@ class Mamis_Shippit_Method extends WC_Shipping_Method
                     $priorityQuote->delivery_date,
                     $priorityQuote->delivery_window
                 ),
+                //FIXME -- add friendly names for scheduled options -- is this needed?
                 'label' => sprintf(
                     'Scheduled Courier - Delivered %s between %s',
                     date('d/m/Y', strtotime($priorityQuote->delivery_date)),

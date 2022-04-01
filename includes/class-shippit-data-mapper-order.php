@@ -229,7 +229,8 @@ class Mamis_Shippit_Data_Mapper_Order extends Mamis_Shippit_Object
 
     public function mapDeliveryInstructions()
     {
-        $deliveryInstructions = $this->order->get_customer_note();
+        // order notes are not the same thing as delivery instructions
+        //$deliveryInstructions = $this->order->get_customer_note();
 
         return $this->setDeliveryInstructions($deliveryInstructions);
     }

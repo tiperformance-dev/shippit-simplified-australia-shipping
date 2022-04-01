@@ -179,6 +179,34 @@ class Mamis_Shippit_Helper
         return false;
     }
 
+    public function getFriendlyCourierName($courier_type, $service_level)
+    {
+        $courierFriendlyNames = [
+            //Priority
+            'AlliedExpressSameday' => 'Allied Express Same Day',
+            'Bonds' => 'Bonds',
+            'YelloOndemand' => 'Yello',
+            
+            //Express
+            'EparcelExpress' => 'Express Post',
+            'DhlExpressInternational' => 'DHL Express International',
+            'EparcelInternationalExpress' => 'International Express Post',
+            'DhlExpress' => 'DHL Express',
+            
+            //Standard
+            'EparcelInternational' => 'International Post',
+            'Eparcel' => 'Standard Post',
+            'CouriersPlease' => 'Couriers Please',
+            'AlliedExpressOvernight' => 'Allied Express',
+            'Fastway' => 'Fastway'
+        ];
+        
+        $friendlyName = $courierFriendlyNames[$courier_type] ?? ucwords($service_level);
+
+        return $friendlyName;
+
+    }
+
     protected function getShippingMethodId($shippingMethod)
     {
         // Since Woocommerce v3.4.0, the instance_id is saved in a seperate property of the shipping method
