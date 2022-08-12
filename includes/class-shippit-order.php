@@ -84,7 +84,7 @@ class Mamis_Shippit_Order
         if ($autoSyncOrders == 'all_shippit' && !$this->isShippitShippingMethod($order)) {
             return;
         }
-        
+
         add_post_meta($orderId, '_mamis_shippit_sync', 'false', true);
         // attempt to sync the order now
         $this->syncOrder($orderId);
