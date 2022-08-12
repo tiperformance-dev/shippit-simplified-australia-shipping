@@ -198,7 +198,8 @@ class Mamis_Shippit_Helper
             'Eparcel' => 'Standard Post',
             'CouriersPlease' => 'Couriers Please',
             'AlliedExpressOvernight' => 'Allied Express',
-            'Fastway' => 'Fastway'
+            'Fastway' => 'Fastway',
+            'AramexAuNz' => 'Aramex'
         ];
         
         $friendlyName = $courierFriendlyNames[$courier_type] ?? ucwords($service_level);
