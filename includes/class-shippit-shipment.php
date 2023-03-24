@@ -207,7 +207,7 @@ class Mamis_Shippit_Shipment
         }
 
         // Remove any refunded items from shippable count
-        $totalItemsShippable -= $order->get_total_qty_refunded();
+        $totalItemsShippable += $order->get_total_qty_refunded();
 
         $this->log->add(
             'SHIPPIT - WEBHOOK REQUEST',
@@ -347,6 +347,10 @@ class Mamis_Shippit_Shipment
         $shipmentData['tracking_number'] = $requestData->tracking_number;
         $shipmentData['tracking_url'] = $requestData->tracking_url;
         $shipmentData['courier_name'] = $requestData->courier_name;
+
+        if (get_option('wc_settings_shippit_fulfillment_tracking_reference') == 'courier_tracking_reference') {
+            $shipmentData['courier_tracking_number'] = $requestData->courier_job_id;
+        }
 
         if (!empty($readyForPickUp)) {
             $shipmentData['booked_at'] = date("d-m-Y H:i:s", strtotime($readyForPickUp->time));

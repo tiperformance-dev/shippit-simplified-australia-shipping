@@ -1,9 +1,9 @@
 === Plugin Name ===
 Contributors: williamonshippit
 Donate link: NA
-Tags: shipping, australia post, couriers please, fastway, shipping method,
+Tags: shipping, australia post, couriers please, aramex
 Requires at least: 3.0.0
-Tested up to: 5.7.2
+Tested up to: 6.1.0
 Stable tag: stable
 License: GPLv2 or later
 
@@ -60,10 +60,40 @@ Go to www.shippit.com and sign up for an account. We will email you an API key
 
 == Changelog ==
 
+= 1.8.1 =
+
+- Bugfixes
+-- Resolved an issue where incorrect version metadata was set on the release
+
+= 1.8.0 =
+
+- Added
+-- Updated tested upto tag to indicate support for WooCommerce 6.9.4
+
+= 1.7.2 =
+
+- Bugfixes
+-- Resolved an issue where orders containing a partial refund would not be marked as completed when goods are shipped
+
+= 1.7.1 =
+
+- Bugfixes
+-- Bumped internal version number in metadata to v1.7.1
+
+= 1.7.0 =
+
+- Added
+-- Support for capturing the courier tracking number when creating a shipment
+
+= 1.6.7 =
+
+- Changes
+-- Validated plugin is tested on Wordpress v6 and WooCommerce v6.8
+
 = 1.6.6 =
 
 - Bugfixes
--- Resolved an issue whereby DB upgrades may throw an error if the configuration is empty / not set 
+-- Resolved an issue whereby DB upgrades may throw an error if the configuration is empty / not set
 
 = 1.6.5 =
 
