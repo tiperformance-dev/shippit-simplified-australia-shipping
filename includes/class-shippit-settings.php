@@ -347,7 +347,21 @@ class Mamis_Shippit_Settings
                 'class' => 'wc-enhanced-select',
                 'default' => 'yes',
                 'type' => 'select',
-                'desc' => 'Enable this setting to mark orders as fulfilled in WooCommerce. With this setting enabled, Shippit will update all tracking information against the order as it is fulfilled.',
+                'desc' => 'Enable this setting to mark orders as fulfilled in WooCommerce. With this setting enabled, Shippit will update all tracking information against the order as it is fulfilled. Note: Shippit has trouble forgetting this webhook and will continue to post even when disabled. ',
+                'desc_tip' => true,
+                'options' => array(
+                    'no' => __('No', 'woocommerce-shippit'),
+                    'yes' => __('Yes', 'woocommerce-shippit'),
+                )
+            ),
+
+            'completion_enabled' => array(
+                'id' => 'wc_settings_shippit_completion_enabled',
+                'title' => __('Enable auto-completion', 'woocommerce-shippit'),
+                'class' => 'wc-enhanced-select',
+                'default' => 'yes',
+                'type' => 'select',
+                'desc' => 'Enable this setting to mark orders as completed in WooCommerce when all items have been marked Shipped in Shippit.',
                 'desc_tip' => true,
                 'options' => array(
                     'no' => __('No', 'woocommerce-shippit'),
