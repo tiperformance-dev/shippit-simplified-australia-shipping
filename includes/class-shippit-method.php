@@ -111,6 +111,11 @@ class Mamis_Shippit_Method extends WC_Shipping_Method
             return;
         }
 
+        // Ensure we are on a page where we want to calculate the checkout
+        if (is_admin()) {
+            return;
+        }
+
         // Ensure we have a shipping method available for use
         if (empty($this->allowed_methods)) {
             return;
