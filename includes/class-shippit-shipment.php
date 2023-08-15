@@ -318,7 +318,7 @@ class Mamis_Shippit_Shipment
                 10,
                 2
             );
-        } elseif ($totalItemsShipped >= $totalItemsShippable && get_option('wc_settings_shippit_completion_enabled') != 'yes') {
+        } elseif ($totalItemsShipped >= $totalItemsShippable) {
 			$order->update_status('completed', 'Order has been shipped with Shippit, not auto completing order. ');
 		}
 
