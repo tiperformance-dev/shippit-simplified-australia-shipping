@@ -112,7 +112,7 @@ class Mamis_Shippit_Method extends WC_Shipping_Method
         }
 
         // Ensure we are on a page where we want to calculate the checkout
-        if (is_admin()) {
+        if (is_admin() || is_product()) {
             return;
         }
 
