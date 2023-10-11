@@ -111,8 +111,8 @@ class Mamis_Shippit_Method extends WC_Shipping_Method
             return;
         }
 
-        // Ensure we are on a page where we want to calculate the checkout
-        if (is_admin() || is_product()) {
+        // Ensure we are on a page where we actually want to calculate the shipping cost; this call is *EXPENSIVE* (>3 sec)
+        if (is_admin() || strpos($_SERVER["REQUEST_URI"], 'product') !== false) {
             return;
         }
 
