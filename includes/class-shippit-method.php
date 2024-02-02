@@ -497,10 +497,11 @@ class Mamis_Shippit_Method extends WC_Shipping_Method
             }
         }
 
-        $this->log->add(
-            'Can Ship Disabled Products',
-            'Returning true'
-        );
+		// suppress superfluous logging
+		// $this->log->add(
+        //     'Can Ship Disabled Products',
+        //     'Returning true'
+        // );
 
         return true;
     }
