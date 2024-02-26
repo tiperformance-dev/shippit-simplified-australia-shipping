@@ -319,7 +319,7 @@ class Mamis_Shippit_Shipment
                 2
             );
         } elseif ($totalItemsShipped >= $totalItemsShippable) {
-			$order->add_order_note('Order has been shipped with Shippit, not auto completing order. ', 0);
+			// 2024-02-27 suppress $order->add_order_note('Order has been shipped with Shippit, not auto completing order. ', 0);
 		}
 
         // Update the total of all items shipped
