@@ -1,67 +1,44 @@
 <?php
+
 /**
- * Mamis.IT
- *
- * NOTICE OF LICENSE
- *
- * This source file is subject to the EULA
- * that is available through the world-wide-web at this URL:
- * http://www.mamis.com.au/licencing
- *
- * @category   Mamis
- * @copyright  Copyright (c) 2016 by Mamis.IT Pty Ltd (http://www.mamis.com.au)
- * @author     Matthew Muscat <matthew@mamis.com.au>
- * @license    http://www.mamis.com.au/licencing
+ * Mamis - https://www.mamis.com.au
+ * Copyright © Mamis 2023-present. All rights reserved.
+ * See https://www.mamis.com.au/license
  */
 
 class Mamis_Shippit_Settings_Method
 {
     /**
-     * Init fields.
+     * Initialize the fields for the Shipping Method settings
      *
-     * Add fields to the Shippit settings page.
-     *
+     * @return array
      */
-    public function getFields($isInstance = false)
+    public function getFields()
     {
-        $fields['enabled'] = array(
-            'id' => 'wc_settings_shippit_enabled',
-            'title' => __('Enabled', 'woocommerce-shippit'),
-            'desc'     => 'Utilise this shipping method for live quoting.',
-            'desc_tip' => true,
-            'class' => 'wc-enhanced-select',
-            'default' => 'no',
-            'type' => 'select',
-            'options' => array(
-                'no' => __('No', 'woocommerce-shippit'),
-                'yes' => __('Yes', 'woocommerce-shippit'),
-            ),
-        );
-
-        $fields['title'] = array(
+        $fields['title'] = [
             'title' => __('Title', 'woocommerce-shippit'),
             'type' => 'text',
             'default' => 'Shippit',
-        );
+        ];
 
-        $fields['allowed_methods'] = array(
+        $fields['allowed_methods'] = [
             'title' => __('Allowed Methods', 'woocommerce-shippit'),
             'id' => 'allowed_methods',
             'class' => 'wc-enhanced-select',
             'type' => 'multiselect',
-            'default' => array(
+            'default' => [
                 'standard',
                 'express',
                 'priority'
-            ),
-            'options' => array(
+            ],
+            'options' => [
                 'standard' => __('Standard', 'woocommerce-shippit'),
                 'express' => __('Express', 'woocommerce-shippit'),
                 'priority' => __('Priority', 'woocommerce-shippit'),
-            )
-        );
+            ],
+        ];
 
-        $fields['max_timeslots'] = array(
+        $fields['max_timeslots'] = [
             'title' => __('Maximum Timeslots', 'woocommerce-shippit'),
             'description' => __('The maximum amount of timeslots to display', 'woocommerce-shippit'),
             'desc_tip' => true,
@@ -69,7 +46,7 @@ class Mamis_Shippit_Settings_Method
             'class' => 'wc-enhanced-select',
             'default' => '',
             'type' => 'select',
-            'options' => array(
+            'options' => [
                 '' => __('-- No Max Timeslots --', 'woocommerce-shippit'),
                 '1' => __('1 Timeslots', 'woocommerce-shippit'),
                 '2' => __('2 Timeslots', 'woocommerce-shippit'),
@@ -91,42 +68,9 @@ class Mamis_Shippit_Settings_Method
                 '18' => __('18 Timeslots', 'woocommerce-shippit'),
                 '19' => __('19 Timeslots', 'woocommerce-shippit'),
                 '20' => __('20 Timeslots', 'woocommerce-shippit'),
-           ),
-        );
+            ],
+        ];
 
-        // Only show "filter enabled" and "filter_enabled_products"
-        // on the legacy shipping method class
-        //
-        // Also enables merchants to avoid this functionality if they have
-        // larger stores by setting the "SHIPPIT_PRODUCT_FILTERING" constant
-        // to false
-        //
-        // @Depreciated: this functionality is due to be removed in 2018 Q1;
-        if (!$isInstance && !defined('SHIPPIT_DISABLE_PRODUCT_FILTER')) {
-            $fields['filter_enabled'] = array(
-                'title' => __('Filter by enabled products', 'woocommerce-shippit'),
-                'description' => __('Filter products that are enabled for quoting by shippit', 'woocommerce-shippit'),
-                'desc_tip' => true,
-                'class' => 'wc-enhanced-select',
-                'default' => 'no',
-                'type' => 'select',
-                'options' => array(
-                    'no' => __('No', 'woocommerce-shippit'),
-                    'yes' => __('Yes', 'woocommerce-shippit'),
-               ),
-            );
-
-            $fields['filter_enabled_products'] = array(
-                'title' => __('Enabled Products', 'woocommerce-shippit'),
-                'description' => __('The products enabled for quoting by Shippit', 'woocommerce-shippit'),
-                'desc_tip' => true,
-                'class' => 'wc-enhanced-select',
-                'default' => '',
-                'type' => 'multiselect',
-                'options' => $this->_getProducts(),
-            );
-        }
-        
 		// Add filter to allow disable of shippit method for certain products (eg. digital downloads or non-courier friendly items)
 		$fields['filter_disabled_products'] = array(
 			'title' => __('Disabled Products', 'woocommerce-shippit'),
@@ -142,54 +86,58 @@ class Mamis_Shippit_Settings_Method
             'title' => __('Filter by product attributes', 'woocommerce-shippit'),
             'description' => __('Filter products that are enabled for quoting by shippit via their attributes', 'woocommerce-shippit'),
             'desc_tip' => true,
-            'class' => 'wc-enhanced-select',
+            'class' => 'wc-enhanced-select woocommerce-mamis-shippit-filter-attribute',
             'default' => 'no',
             'type' => 'select',
-            'options' => array(
+            'options' => [
                 'no' => __('No', 'woocommerce-shippit'),
                 'yes' => __('Yes', 'woocommerce-shippit'),
-           ),
-        );
+            ],
+        ];
 
-        $fields['filter_attribute_code'] = array(
-            'title' => __('Filter by attribute code', 'woocommerce-shippit'),
+        $fields['filter_attribute_code'] = [
+            'title' => __('Attribute code', 'woocommerce-shippit'),
             'description' => __('The product attribute code', 'woocommerce-shippit'),
             'desc_tip' => true,
             'type' => 'select',
-            'class' => 'wc-enhanced-select',
+            'class' => 'wc-enhanced-select woocommerce-mamis-shippit-filter-attribute-code',
             'default' => '',
-            'options' => $this->_getAttributes(),
-        );
+            'options' => wc_get_attribute_taxonomy_labels(),
+        ];
 
-        $fields['filter_attribute_value'] = array(
-            'title' => __('Filter by attribute value', 'woocommerce-shippit'),
+        $fields['filter_attribute_value'] = [
+            'title' => __('Attribute value', 'woocommerce-shippit'),
             'description' => __('The product attribute value', 'woocommerce-shippit'),
             'desc_tip' => true,
             'default' => '',
             'type' => 'text',
-        );
+            'class' => 'woocommerce-mamis-shippit-filter-attribute-value'
+        ];
 
-        $fields['margin'] = array(
+        $fields['margin'] = [
+            'id' => 'woocommerce_mamis_shippit_margin',
             'title' => __('Margin'),
-            'class' => 'wc-enhanced-select',
+            'class' => 'wc-enhanced-select shippit-margin',
             'default' => 'no',
             'description' => __('Add a margin to the quoted shipping amounts', 'woocommerce-shippit'),
             'desc_tip' => true,
             'type' => 'select',
-            'options' => array(
+            'options' => [
                 'no' => __('No', 'woocommerce-shippit'),
                 'yes-percentage' => __('Yes - Percentage', 'woocommerce-shippit'),
                 'yes-fixed' => __('Yes - Fixed Dollar Amount', 'woocommerce-shippit'),
-           ),
-        );
+            ],
+        ];
 
-        $fields['margin_amount'] = array(
+        $fields['margin_amount'] = [
+            'id' => 'woocommerce_mamis_shippit_margin_amount',
             'title' => __('Margin Amount', 'woocommerce-shippit'),
+            'class' => 'shippit-margin-amount',
             'description' => __('Please enter a margin amount, in either a whole dollar amount (ie: 5.50) or a percentage amount (ie: 5)', 'woocommerce-shippit'),
             'desc_tip' => true,
             'default' => '',
             'type' => 'text',
-        );
+        ];
 
         return $fields;
     }
