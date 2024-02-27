@@ -36,6 +36,11 @@ class Mamis_Shippit_Method extends WC_Shipping_Method
     /**
      * @var string|null
      */
+    protected $filter_disabled_products;
+
+    /**
+     * @var string|null
+     */
     protected $quote_enabled;
 
     /**
@@ -137,8 +142,7 @@ class Mamis_Shippit_Method extends WC_Shipping_Method
     public function calculate_shipping($package = array())
     {
         // Check if the module is enabled and used for shipping quotes
-        if (get_option('wc_settings_shippit_enabled') != 'yes'
-        || $this->quote_enabled != 'yes') {
+        if (get_option('wc_settings_shippit_enabled') != 'yes') {
             return;
         }
 
@@ -216,16 +220,15 @@ class Mamis_Shippit_Method extends WC_Shipping_Method
             'dropoff_postcode' => $dropoffPostcode,
             'dropoff_state' => $dropoffState,
             'dropoff_country_code' => $dropoffCountryCode,
-            'parcel_attributes' => $this->getParcelAttributes($items),
-            'return_all_quotes' => true,
-            'dutiable_amount' => WC()->cart->get_cart_contents_total(),
+            'parcel_attributes' => $this->getParcelAttributes($quoteContents),
+            //'return_all_quotes' => true,
+            //'dutiable_amount' => WC()->cart->get_cart_contents_total(),
         );
 
         if ($dropoffSuburb === "" || $dropoffPostcode === "") {
             // submitting a quote to the API without mandatory attributes would result in an API error.  abort!
-            $this->log->add(
-                'SHIPPIT API VALIDATION',
-                print_r($quoteData, true)
+            $this->log->debug(
+                'Shippit API validation: '.print_r($quoteData, true)
             );
             return false;
         }        
@@ -489,25 +492,24 @@ class Mamis_Shippit_Method extends WC_Shipping_Method
         if (!empty($disallowedProducts)) {
             // If item is enabled return false
             if ($productIds = array_intersect($productIds, $disallowedProducts)) {
-                $this->log->add(
-                    'Can\'t Ship Products - some disabled',
-                    'Returning false'
+                $this->log->info(
+                    'Can\'t Ship Products - some disabled. Skipping quote'
                 );
 
                 return false;
             }
         }
 
-		// suppress superfluous logging
-		// $this->log->add(
-        //     'Can Ship Disabled Products',
-        //     'Returning true'
-        // );
-
         return true;
 }
 
-    private function _canShipEnabledAttributes($package)
+    /**
+     * Determine if the quote package content contains items we can quote on
+     *
+     * @param array $package
+     * @return boolean
+     */
+    protected function canShipEnabledAttributes($products)
     {
         if ($this->filter_attribute === 'no') {
             return true;

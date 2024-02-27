@@ -9,7 +9,7 @@
 class Mamis_Shippit_Api
 {
     const API_ENDPOINT_LIVE = 'https://app.shippit.com/api/3';
-    const API_ENDPOINT_STAGING = 'https://app.shippit.com/api/3';
+    const API_ENDPOINT_STAGING = 'https://app.staging.shippit.com/api/3';
     const API_TIMEOUT = 10;
     const API_USER_AGENT = 'Mamis_Shippit for WooCommerce';
 

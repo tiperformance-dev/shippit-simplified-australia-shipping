@@ -72,7 +72,7 @@ class Mamis_Shippit_Settings_Method
         ];
 
 		// Add filter to allow disable of shippit method for certain products (eg. digital downloads or non-courier friendly items)
-		$fields['filter_disabled_products'] = array(
+		$fields['filter_disabled_products'] = [
 			'title' => __('Disabled Products', 'woocommerce-shippit'),
 			'description' => __('The products disabled for quoting by Shippit', 'woocommerce-shippit'),
 			'desc_tip' => true,
@@ -80,9 +80,9 @@ class Mamis_Shippit_Settings_Method
 			'default' => '',
 			'type' => 'multiselect',
 			'options' => $this->_getProducts(),
-		);
+        ];
 
-        $fields['filter_attribute'] = array(
+        $fields['filter_attribute'] = [
             'title' => __('Filter by product attributes', 'woocommerce-shippit'),
             'description' => __('Filter products that are enabled for quoting by shippit via their attributes', 'woocommerce-shippit'),
             'desc_tip' => true,
@@ -95,7 +95,7 @@ class Mamis_Shippit_Settings_Method
             ],
         ];
 
-        $fields['filter_attribute_code'] = [
+        $fields['filter_attribute_cx`ode'] = [
             'title' => __('Attribute code', 'woocommerce-shippit'),
             'description' => __('The product attribute code', 'woocommerce-shippit'),
             'desc_tip' => true,
