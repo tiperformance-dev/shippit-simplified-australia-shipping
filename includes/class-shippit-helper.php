@@ -183,7 +183,6 @@ class Mamis_Shippit_Helper
         return false;
     }
 
-<<<<<<< HEAD
     public function getFriendlyCourierName($courier_type, $service_level)
     {
         $courierFriendlyNames = [
@@ -214,16 +213,7 @@ class Mamis_Shippit_Helper
 
     }
 
-    protected function getShippingMethodId($shippingMethod)
-=======
-    /**
-     * Retrieve the Shipping Method Id for a shipping method
-     *
-     * @param WC_Order_Item_Shipping $shippingMethod
-     * @return string
-     */
     protected function getShippingMethodId(WC_Order_Item_Shipping $shippingMethod): string
->>>>>>> upstream/master
     {
         // Since Woocommerce v3.4.0, the instance_id is saved in a seperate property of the shipping method
         // To add support for v3.4.0, we'll append the instance_id, as this is how we store a mapping in Shippit
