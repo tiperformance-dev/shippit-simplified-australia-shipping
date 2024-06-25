@@ -360,6 +360,9 @@ class Mamis_Shippit_Method extends WC_Shipping_Method
             $taxes = WC_Tax::calc_inclusive_tax($quotePrice, WC_Tax::get_shipping_tax_rates());
             $cost = $quotePrice - array_sum($taxes);
 
+            $taxes = WC_Tax::calc_inclusive_tax($quotePrice, WC_Tax::get_shipping_tax_rates());
+            $cost = $quotePrice - array_sum($taxes);
+
             $rate = array(
                 // unique id for each rate
                 'id'    => 'Mamis_Shippit_' . $shippingQuote->courier_type,
@@ -386,6 +389,9 @@ class Mamis_Shippit_Method extends WC_Shipping_Method
     {
         foreach ($shippingQuote->quotes as $quote) {
             $quotePrice = $this->getQuotePrice($quote->price);
+
+            $taxes = WC_Tax::calc_inclusive_tax($quotePrice, WC_Tax::get_shipping_tax_rates());
+            $cost = $quotePrice - array_sum($taxes);
 
             $taxes = WC_Tax::calc_inclusive_tax($quotePrice, WC_Tax::get_shipping_tax_rates());
             $cost = $quotePrice - array_sum($taxes);
@@ -428,6 +434,9 @@ class Mamis_Shippit_Method extends WC_Shipping_Method
             $taxes = WC_Tax::calc_inclusive_tax($quotePrice, WC_Tax::get_shipping_tax_rates());
             $cost = $quotePrice - array_sum($taxes);
 
+            $taxes = WC_Tax::calc_inclusive_tax($quotePrice, WC_Tax::get_shipping_tax_rates());
+            $cost = $quotePrice - array_sum($taxes);
+
             $rate = array(
                 'id' => sprintf(
                     'Mamis_Shippit_%s_%s_%s',
@@ -441,6 +450,8 @@ class Mamis_Shippit_Method extends WC_Shipping_Method
                     date('d/m/Y', strtotime($priorityQuote->delivery_date)),
                     $priorityQuote->delivery_window_desc
                 ),
+                'cost' => $cost,
+                'taxes' => $taxes,
                 'cost' => $cost,
                 'taxes' => $taxes,
                 'meta_data' => array(

@@ -4,6 +4,7 @@ Donate link: NA
 Tags: shipping, australia post, couriers please, aramex
 Requires at least: 4.0.0
 Tested up to: 6.5.0
+Tested up to: 6.5.0
 Stable tag: stable
 Requires PHP: 7.0
 License: Shippit Commercial Licence
@@ -57,6 +58,12 @@ Go to www.shippit.com and sign up for an account. You'll find your API Key in th
 
 
 == Changelog ==
+
+= 2.0.2 =
+
+### Fixed
+- Ensure the shipping rates provided by shippit includes calculations as to the taxable amount associated with Shipping
+
 
 = 2.0.2 =
 
