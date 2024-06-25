@@ -95,7 +95,7 @@ class Mamis_Shippit_Settings_Method
             ],
         ];
 
-        $fields['filter_attribute_cx`ode'] = [
+        $fields['filter_attribute_code'] = [
             'title' => __('Attribute code', 'woocommerce-shippit'),
             'description' => __('The product attribute code', 'woocommerce-shippit'),
             'desc_tip' => true,
