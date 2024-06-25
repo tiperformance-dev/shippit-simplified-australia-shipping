@@ -36,11 +36,6 @@ class Mamis_Shippit_Method extends WC_Shipping_Method
     /**
      * @var string|null
      */
-    protected $filter_disabled_products;
-
-    /**
-     * @var string|null
-     */
     protected $quote_enabled;
 
     /**
@@ -362,11 +357,15 @@ class Mamis_Shippit_Method extends WC_Shipping_Method
         foreach ($shippingQuote->quotes as $quote) {
             $quotePrice = $this->getQuotePrice($quote->price);
 
+            $taxes = WC_Tax::calc_inclusive_tax($quotePrice, WC_Tax::get_shipping_tax_rates());
+            $cost = $quotePrice - array_sum($taxes);
+
             $rate = array(
                 // unique id for each rate
                 'id'    => 'Mamis_Shippit_' . $shippingQuote->courier_type,
                 'label' => $this->helper->getFriendlyCourierName($shippingQuote->courier_type,$shippingQuote->service_level), //ucwords($shippingQuote->service_level." Courier"),
-                'cost' => $quotePrice,
+                'cost' => $cost,
+                'taxes' => $taxes,
                 'meta_data' => array(
                     'service_level' => $shippingQuote->service_level,
                     'courier_allocation' => $shippingQuote->courier_type,
@@ -388,10 +387,14 @@ class Mamis_Shippit_Method extends WC_Shipping_Method
         foreach ($shippingQuote->quotes as $quote) {
             $quotePrice = $this->getQuotePrice($quote->price);
 
+            $taxes = WC_Tax::calc_inclusive_tax($quotePrice, WC_Tax::get_shipping_tax_rates());
+            $cost = $quotePrice - array_sum($taxes);
+
             $rate = array(
                 'id'    => 'Mamis_Shippit_' . $shippingQuote->courier_type,
                 'label' => $this->helper->getFriendlyCourierName($shippingQuote->courier_type,$shippingQuote->service_level), //ucwords($shippingQuote->service_level." Courier"),
-                'cost' => $quotePrice,
+                'cost' => $cost,
+                'taxes' => $taxes,
                 'meta_data' => array(
                     'service_level' => $shippingQuote->service_level,
                     'courier_allocation' => $shippingQuote->courier_type,
@@ -422,6 +425,9 @@ class Mamis_Shippit_Method extends WC_Shipping_Method
 
             $quotePrice = $this->getQuotePrice($priorityQuote->price);
 
+            $taxes = WC_Tax::calc_inclusive_tax($quotePrice, WC_Tax::get_shipping_tax_rates());
+            $cost = $quotePrice - array_sum($taxes);
+
             $rate = array(
                 'id' => sprintf(
                     'Mamis_Shippit_%s_%s_%s',
@@ -435,7 +441,8 @@ class Mamis_Shippit_Method extends WC_Shipping_Method
                     date('d/m/Y', strtotime($priorityQuote->delivery_date)),
                     $priorityQuote->delivery_window_desc
                 ),
-                'cost' => $quotePrice,
+                'cost' => $cost,
+                'taxes' => $taxes,
                 'meta_data' => array(
                     'service_level' => $shippingQuote->service_level,
                     'courier_allocation' => $priorityQuote->courier_type,
