@@ -250,7 +250,12 @@ class Mamis_Shippit_Method extends WC_Shipping_Method
                             if ($isStandardAvailable) {
                                 $this->addStandardQuote($shippingQuote);
                             }
+
                             break;
+                        case 'on_demand':
+                            if ($isExpressAvailable) {
+                                $this->addExpressQuote($shippingQuote);
+                            }
 
                             break;
                     }
@@ -447,7 +452,8 @@ class Mamis_Shippit_Method extends WC_Shipping_Method
                 ),
                 //FIXME -- add friendly names for scheduled options -- is this needed?
                 'label' => sprintf(
-                    'Scheduled Courier - Delivered %s between %s',
+                    '%s Courier - Delivered %s between %s',
+                    $this->helper->getFriendlyCourierName($priorityQuote->courier_type,$shippingQuote->service_level),
                     date('d/m/Y', strtotime($priorityQuote->delivery_date)),
                     $priorityQuote->delivery_window_desc
                 ),
