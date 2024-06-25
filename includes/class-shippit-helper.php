@@ -204,7 +204,11 @@ class Mamis_Shippit_Helper
 			'CouriersPleaseLMU' => 'Couriers Please',
             'AlliedExpressOvernight' => 'Allied Express',
             'Fastway' => 'Fastway',
-            'AramexAuNz' => 'Aramex'
+            'AramexAuNz' => 'Aramex',
+            'Tnt' => 'TNT',
+
+            //On Demand
+            'UberOndemand' => 'Uber On Demand'
         ];
         
         $friendlyName = $courierFriendlyNames[$courier_type] ?? ucwords($service_level);

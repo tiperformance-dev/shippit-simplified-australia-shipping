@@ -250,6 +250,7 @@ class Mamis_Shippit_Method extends WC_Shipping_Method
                             if ($isStandardAvailable) {
                                 $this->addStandardQuote($shippingQuote);
                             }
+                            break;
 
                             break;
                     }
