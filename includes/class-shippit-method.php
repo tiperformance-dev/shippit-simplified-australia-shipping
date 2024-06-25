@@ -208,8 +208,19 @@ class Mamis_Shippit_Method extends WC_Shipping_Method
             return;
         }
 
+        // set dateorder  as tomorrow after 4pm FIXME this is hard coded
+        $now = new DateTime();
+        $now->setTimezone( new DateTimeZone( get_option( 'timezone_string' ) ) );       
+        // DISABLE THIS LOGIC
+        if ($now->format('Hi') > 1600 AND 1==2) {
+            $this->log->debug('After 4pm; quote as tomorrow: '.$now->modify('+1 day')->format('Y-m-d'));
+            $quoteDate = $now->modify('+1 day')->format('Y-m-d');
+        } else {
+            $quoteDate = '';
+        }
+
         $quoteData = array(
-            'order_date' => '', // get all available dates
+            'order_date' => $quoteDate, // get all available dates
             'dropoff_address' => $this->getDropoffAddress($quoteDestination),
             'dropoff_suburb' => $dropoffSuburb,
             'dropoff_postcode' => $dropoffPostcode,
@@ -395,6 +406,11 @@ class Mamis_Shippit_Method extends WC_Shipping_Method
     {
         foreach ($shippingQuote->quotes as $quote) {
             $quotePrice = $this->getQuotePrice($quote->price);
+            //FIXME: Add an overhead to Uber orders
+            if($shippingQuote->courier_type == 'UberOndemand') {
+                $quotePrice = $quotePrice * 1.1;
+                $quotePrice = $quotePrice + 10;
+            }
 
             $taxes = WC_Tax::calc_inclusive_tax($quotePrice, WC_Tax::get_shipping_tax_rates());
             $cost = $quotePrice - array_sum($taxes);
@@ -450,7 +466,6 @@ class Mamis_Shippit_Method extends WC_Shipping_Method
                     $priorityQuote->delivery_date,
                     $priorityQuote->delivery_window
                 ),
-                //FIXME -- add friendly names for scheduled options -- is this needed?
                 'label' => sprintf(
                     '%s Courier - Delivered %s between %s',
                     $this->helper->getFriendlyCourierName($priorityQuote->courier_type,$shippingQuote->service_level),
