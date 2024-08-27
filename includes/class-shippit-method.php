@@ -53,6 +53,9 @@ class Mamis_Shippit_Method extends WC_Shipping_Method
      */
     protected $filter_attribute_value;
 
+    /* php8 deprecation notice */
+    protected $filter_disabled_products;
+
     /**
      * @var string|null
      */
