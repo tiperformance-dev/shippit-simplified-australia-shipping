@@ -214,10 +214,10 @@ class Mamis_Shippit_Method extends WC_Shipping_Method
         // set dateorder  as tomorrow after 4pm FIXME this is hard coded
         $now = new DateTime();
         $now->setTimezone( new DateTimeZone( get_option( 'timezone_string' ) ) );       
-        // DISABLE THIS LOGIC
-        if ($now->format('Hi') > 1600 AND 1==2) {
-            $this->log->debug('After 4pm; quote as tomorrow: '.$now->modify('+1 day')->format('Y-m-d'));
+        // ENABLE THIS LOGIC
+        if ($now->format('Hi') > 1600 AND 1==1) {
             $quoteDate = $now->modify('+1 day')->format('Y-m-d');
+            $this->log->debug('After 4pm; quote as tomorrow: '.$quoteDate);
         } else {
             $quoteDate = '';
         }
