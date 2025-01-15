@@ -257,9 +257,12 @@ class Mamis_Shippit_Data_Mapper_Order extends Mamis_Shippit_Object
         $itemsData = array();
         $orderItems = $this->order->get_items();
 
-        $orderItemDataMapper = new Mamis_Shippit_Data_Mapper_Order_Item();
+        
 
         foreach ($orderItems as $orderItem) {
+            // 2025-01-15 re-initialise the mapper each time otherwise we send stale product information from the previous item in the order to the API
+            $orderItemDataMapper = new Mamis_Shippit_Data_Mapper_Order_Item();
+
             // If the order item does not have a linked product, skip it
             if (empty($orderItem['product_id'])) {
                 continue;
