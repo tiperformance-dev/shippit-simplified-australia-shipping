@@ -170,6 +170,24 @@ class Mamis_Shippit_Method extends WC_Shipping_Method
         $this->fetchQuotes($quoteDestination, $quoteContents);
     }
 
+    // Added by JB to work on Zimbabwe postcode problem
+    protected function country_requires_postcode($country_code) {
+        // Get WC_Countries instance
+        $wc_countries = new WC_Countries();
+        
+        // Get country locale
+        $locale = $wc_countries->get_country_locale();
+        
+        // Check if country has postcode hidden in its locale
+        if (isset($locale[$country_code]['postcode']) && 
+            (isset($locale[$country_code]['postcode']['hidden']) && $locale[$country_code]['postcode']['hidden'] === true || 
+                isset($locale[$country_code]['postcode']['required']) && $locale[$country_code]['postcode']['required'] === false)) {
+            return false;
+        }
+        
+        return true;
+    }    
+
     /**
      * Perform a request for a shipping quotes based on the destination + contents provided
      *
@@ -197,11 +215,20 @@ class Mamis_Shippit_Method extends WC_Shipping_Method
             return;
         }
         elseif (empty($dropoffPostcode)) {
-            $this->log->debug(
-                'A postcode is required for a live quote'
-            );
-
-            return;
+            $country = WC()->customer->get_shipping_country();
+                // Return false if country doesn't require postcodes
+                if ($this->country_requires_postcode($country)) {
+                    // postcode is required; return
+                    $this->log->debug(
+                        'A postcode is required for a live quote'
+                    );
+                    return;
+                } else {
+                    // postcode not required (eg. ZW) -- allow
+                    $this->log->debug(
+                        'Postcode not required for this country $country'
+                    );
+                }            
         }
         elseif (empty($dropoffCountryCode)) {
             $this->log->debug(
@@ -232,15 +259,7 @@ class Mamis_Shippit_Method extends WC_Shipping_Method
             'parcel_attributes' => $this->getParcelAttributes($quoteContents),
             'return_all_quotes' => true,
             'dutiable_amount' => WC()->cart->get_cart_contents_total(),
-        );
-
-        if ($dropoffSuburb === "" || $dropoffPostcode === "") {
-            // submitting a quote to the API without mandatory attributes would result in an API error.  abort!
-            $this->log->debug(
-                'Shippit API validation: '.print_r($quoteData, true)
-            );
-            return false;
-        }        
+        );    
         
         $shippingQuotes = $this->api->getQuote($quoteData);
 
