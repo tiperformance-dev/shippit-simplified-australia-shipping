@@ -145,7 +145,15 @@ class Mamis_Shippit_Method extends WC_Shipping_Method
         }
 
         // Ensure we are on a page where we actually want to calculate the shipping cost; this call is *EXPENSIVE* (>3 sec)
-        if (is_admin() || strpos($_SERVER["REQUEST_URI"], 'product') !== false) {
+        // Allow shipping-related AJAX but prevent expensive calculations in admin/product pages
+        $is_shipping_ajax = wp_doing_ajax() && (
+            doing_action('woocommerce_checkout_update_order_review') ||
+            strpos($_REQUEST['action'] ?? '', 'shipping') !== false ||
+            strpos($_REQUEST['action'] ?? '', 'apple_pay') !== false ||
+            strpos($_REQUEST['action'] ?? '', 'update_order_review') !== false
+        );
+
+        if ( ( is_admin() && ! $is_shipping_ajax ) || ( ! is_admin() && strpos($_SERVER["REQUEST_URI"], 'product') !== false ) ) {
             return;
         }
 
