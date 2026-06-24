@@ -10,7 +10,8 @@ class Mamis_Shippit_Api
 {
     const API_ENDPOINT_LIVE = 'https://app.shippit.com/api/3';
     const API_ENDPOINT_STAGING = 'https://app.staging.shippit.com/api/3';
-    const API_TIMEOUT = 30;
+    const API_TIMEOUT = 10;
+    const API_USER_AGENT = 'Mamis_Shippit for WooCommerce';
 
     /**
      * @var string|null
@@ -222,6 +223,12 @@ class Mamis_Shippit_Api
             return false;
         }
 
+        if (!$quote || !isset($quote->response)) {
+            $this->log->warning('getQuote: missing response property in API response');
+
+            return false;
+        }
+
         return $quote->response;
     }
 
@@ -241,6 +248,12 @@ class Mamis_Shippit_Api
             $order = $this->call('POST', 'orders', $requestData, false);
         }
         catch (Exception $e) {
+            return false;
+        }
+
+        if (!$order || !isset($order->response)) {
+            $this->log->warning('createOrder: missing response property in API response');
+
             return false;
         }
 

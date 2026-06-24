@@ -183,12 +183,40 @@ class Mamis_Shippit_Helper
         return false;
     }
 
-    /**
-     * Retrieve the Shipping Method Id for a shipping method
-     *
-     * @param WC_Order_Item_Shipping $shippingMethod
-     * @return string
-     */
+    public function getFriendlyCourierName($courier_type, $service_level)
+    {
+        $courierFriendlyNames = [
+            //Priority
+            'AlliedExpressSameday' => 'Allied Express Same Day',
+            'Bonds' => 'Bonds',
+            'YelloOndemand' => 'Yello',
+            
+            //Express
+            'EparcelExpress' => 'Express Post',
+            'DhlExpressInternational' => 'DHL Express International',
+            'EparcelInternationalExpress' => 'International Express Post',
+            'DhlExpress' => 'DHL Express',
+            
+            //Standard
+            'EparcelInternational' => 'International Post',
+            'Eparcel' => 'Standard Post',
+            'CouriersPlease' => 'Couriers Please',
+			'CouriersPleaseLMU' => 'Couriers Please',
+            'AlliedExpressOvernight' => 'Allied Express',
+            'Fastway' => 'Fastway',
+            'AramexAuNz' => 'Aramex',
+            'Tnt' => 'TNT',
+
+            //On Demand
+            'UberOndemand' => 'Uber On Demand'
+        ];
+        
+        $friendlyName = $courierFriendlyNames[$courier_type] ?? ucwords($service_level);
+
+        return $friendlyName;
+
+    }
+
     protected function getShippingMethodId(WC_Order_Item_Shipping $shippingMethod): string
     {
         // Since Woocommerce v3.4.0, the instance_id is saved in a seperate property of the shipping method

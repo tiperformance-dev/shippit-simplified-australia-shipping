@@ -71,8 +71,23 @@ class Mamis_Shippit_Settings_Method
             ],
         ];
 
+		// Add filter to allow disable of shippit method for certain products (eg. digital downloads or non-courier friendly items)
+		$fields['filter_disabled_products'] = [
+			'title' => __('Disabled Products', 'woocommerce-shippit'),
+			'description' => __('The products disabled for quoting by Shippit', 'woocommerce-shippit'),
+			'desc_tip' => true,
+			'class' => 'wc-product-search',
+			'default' => '',
+			'type' => 'multiselect',
+			'options' => $this->_getProducts(),
+			'custom_attributes' => [
+				'data-placeholder' => __('Search for a product&hellip;', 'woocommerce-shippit'),
+				'data-action'      => 'woocommerce_json_search_products_and_variations',
+			],
+        ];
+
         $fields['filter_attribute'] = [
-            'title' => __('Product attributes', 'woocommerce-shippit'),
+            'title' => __('Filter by product attributes', 'woocommerce-shippit'),
             'description' => __('Filter products that are enabled for quoting by shippit via their attributes', 'woocommerce-shippit'),
             'desc_tip' => true,
             'class' => 'wc-enhanced-select woocommerce-mamis-shippit-filter-attribute',
@@ -129,5 +144,62 @@ class Mamis_Shippit_Settings_Method
         ];
 
         return $fields;
+    }
+
+    /**
+     * Get products with id/name for a multiselect.
+     *
+     * Only fetches currently-saved product IDs from the instance settings so
+     * that pre-selected options render correctly. New products are found via
+     * the wc-product-search AJAX field rather than loading the full catalogue.
+     *
+     * @return array An associative array of product ids and name
+     */
+    private function _getProducts()
+    {
+        $productOptions = array();
+
+        // Resolve the instance_id from the URL so we can read the saved setting
+        // for this specific method instance without a full WC bootstrap.
+        $instance_id = isset( $_GET['instance_id'] ) ? absint( $_GET['instance_id'] ) : 0;
+
+        if ( ! $instance_id ) {
+            return $productOptions;
+        }
+
+        $instance_settings = get_option( 'woocommerce_mamis_shippit_' . $instance_id . '_settings', array() );
+        $saved_ids         = isset( $instance_settings['filter_disabled_products'] )
+            ? array_filter( array_map( 'absint', (array) $instance_settings['filter_disabled_products'] ) )
+            : array();
+
+        if ( empty( $saved_ids ) ) {
+            return $productOptions;
+        }
+
+        $products = get_posts( array(
+            'post_type'      => 'product',
+            'post__in'       => $saved_ids,
+            'posts_per_page' => count( $saved_ids ),
+            'cache_results'  => false,
+        ) );
+
+        foreach ( $products as $product ) {
+            $productOptions[ $product->ID ] = $product->post_title;
+        }
+
+        return $productOptions;
+    }
+
+    public function _getAttributes()
+    {
+        $productAttributes = array();
+
+        $attributeTaxonomies = wc_get_attribute_taxonomies();
+
+        foreach ($attributeTaxonomies as $tax) {
+            $productAttributes[$tax->attribute_name] = __($tax->attribute_name, 'woocommerce-shippit');
+        }
+
+        return $productAttributes;
     }
 }

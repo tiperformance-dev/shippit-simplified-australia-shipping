@@ -53,6 +53,9 @@ class Mamis_Shippit_Method extends WC_Shipping_Method
      */
     protected $filter_attribute_value;
 
+    /* php8 deprecation notice */
+    protected $filter_disabled_products;
+
     /**
      * @var string|null
      */
@@ -100,6 +103,7 @@ class Mamis_Shippit_Method extends WC_Shipping_Method
         $this->title                   = $this->get_option('title');
         $this->allowed_methods         = $this->get_option('allowed_methods');
         $this->max_timeslots           = $this->get_option('max_timeslots');
+        $this->filter_disabled_products = $this->get_option('filter_disabled_products');
         $this->filter_attribute        = $this->get_option('filter_attribute');
         $this->filter_attribute_code   = $this->get_option('filter_attribute_code');
         $this->filter_attribute_value  = $this->get_option('filter_attribute_value');
@@ -140,6 +144,19 @@ class Mamis_Shippit_Method extends WC_Shipping_Method
             return;
         }
 
+        // Ensure we are on a page where we actually want to calculate the shipping cost; this call is *EXPENSIVE* (>3 sec)
+        // Allow shipping-related AJAX but prevent expensive calculations in admin/product pages
+        $is_shipping_ajax = wp_doing_ajax() && (
+            doing_action('woocommerce_checkout_update_order_review') ||
+            strpos($_REQUEST['action'] ?? '', 'shipping') !== false ||
+            strpos($_REQUEST['action'] ?? '', 'apple_pay') !== false ||
+            strpos($_REQUEST['action'] ?? '', 'update_order_review') !== false
+        );
+
+        if ( ( is_admin() && ! $is_shipping_ajax ) || ( ! is_admin() && strpos($_SERVER["REQUEST_URI"], 'product') !== false ) ) {
+            return;
+        }
+
         // Ensure we have a shipping method available for use
         if (empty($this->allowed_methods)) {
             return;
@@ -147,7 +164,12 @@ class Mamis_Shippit_Method extends WC_Shipping_Method
 
         $quoteDestination = $package['destination'];
         $quoteContents = $package['contents'];
-
+        
+        // Check if we can ship the products by disabled filtering
+        if (!$this->_canShipDisabledProducts($package)) {
+            return;
+        }
+        
         // Check if we can ship the products by attribute filtering
         if ($this->canShipEnabledAttributes($quoteContents) === false) {
             return;
@@ -155,6 +177,24 @@ class Mamis_Shippit_Method extends WC_Shipping_Method
 
         $this->fetchQuotes($quoteDestination, $quoteContents);
     }
+
+    // Added by JB to work on Zimbabwe postcode problem
+    protected function country_requires_postcode($country_code) {
+        // Get WC_Countries instance
+        $wc_countries = new WC_Countries();
+        
+        // Get country locale
+        $locale = $wc_countries->get_country_locale();
+        
+        // Check if country has postcode hidden in its locale
+        if (isset($locale[$country_code]['postcode']) && 
+            (isset($locale[$country_code]['postcode']['hidden']) && $locale[$country_code]['postcode']['hidden'] === true || 
+                isset($locale[$country_code]['postcode']['required']) && $locale[$country_code]['postcode']['required'] === false)) {
+            return false;
+        }
+        
+        return true;
+    }    
 
     /**
      * Perform a request for a shipping quotes based on the destination + contents provided
@@ -183,11 +223,20 @@ class Mamis_Shippit_Method extends WC_Shipping_Method
             return;
         }
         elseif (empty($dropoffPostcode)) {
-            $this->log->debug(
-                'A postcode is required for a live quote'
-            );
-
-            return;
+            $country = WC()->customer->get_shipping_country();
+                // Return false if country doesn't require postcodes
+                if ($this->country_requires_postcode($country)) {
+                    // postcode is required; return
+                    $this->log->debug(
+                        'A postcode is required for a live quote'
+                    );
+                    return;
+                } else {
+                    // postcode not required (eg. ZW) -- allow
+                    $this->log->debug(
+                        'Postcode not required for this country $country'
+                    );
+                }            
         }
         elseif (empty($dropoffCountryCode)) {
             $this->log->debug(
@@ -197,17 +246,29 @@ class Mamis_Shippit_Method extends WC_Shipping_Method
             return;
         }
 
+        // set dateorder  as tomorrow after 4pm FIXME this is hard coded
+        $now = new DateTime();
+        $now->setTimezone( new DateTimeZone( get_option( 'timezone_string' ) ) );       
+        // ENABLE THIS LOGIC
+        if ($now->format('Hi') > 1600 AND 1==1) {
+            $quoteDate = $now->modify('+1 day')->format('Y-m-d');
+            $this->log->debug('After 4pm; quote as tomorrow: '.$quoteDate);
+        } else {
+            $quoteDate = '';
+        }
+
         $quoteData = array(
-            'order_date' => '', // get all available dates
+            'order_date' => $quoteDate, // get all available dates
             'dropoff_address' => $this->getDropoffAddress($quoteDestination),
             'dropoff_suburb' => $dropoffSuburb,
             'dropoff_postcode' => $dropoffPostcode,
             'dropoff_state' => $dropoffState,
             'dropoff_country_code' => $dropoffCountryCode,
             'parcel_attributes' => $this->getParcelAttributes($quoteContents),
+            'return_all_quotes' => true,
             'dutiable_amount' => WC()->cart->get_cart_contents_total(),
-        );
-
+        );    
+        
         $shippingQuotes = $this->api->getQuote($quoteData);
 
         if ($shippingQuotes) {
@@ -229,6 +290,12 @@ class Mamis_Shippit_Method extends WC_Shipping_Method
                         case 'standard':
                             if ($isStandardAvailable) {
                                 $this->addStandardQuote($shippingQuote);
+                            }
+
+                            break;
+                        case 'on_demand':
+                            if ($isExpressAvailable) {
+                                $this->addExpressQuote($shippingQuote);
                             }
 
                             break;
@@ -340,10 +407,13 @@ class Mamis_Shippit_Method extends WC_Shipping_Method
             $taxes = WC_Tax::calc_inclusive_tax($quotePrice, WC_Tax::get_shipping_tax_rates());
             $cost = $quotePrice - array_sum($taxes);
 
+            $taxes = WC_Tax::calc_inclusive_tax($quotePrice, WC_Tax::get_shipping_tax_rates());
+            $cost = $quotePrice - array_sum($taxes);
+
             $rate = array(
                 // unique id for each rate
-                'id' => 'Mamis_Shippit_' . $shippingQuote->service_level,
-                'label' => ucwords($shippingQuote->service_level),
+                'id'    => 'Mamis_Shippit_' . $shippingQuote->courier_type,
+                'label' => $this->helper->getFriendlyCourierName($shippingQuote->courier_type,$shippingQuote->service_level), //ucwords($shippingQuote->service_level." Courier"),
                 'cost' => $cost,
                 'taxes' => $taxes,
                 'meta_data' => array(
@@ -366,13 +436,21 @@ class Mamis_Shippit_Method extends WC_Shipping_Method
     {
         foreach ($shippingQuote->quotes as $quote) {
             $quotePrice = $this->getQuotePrice($quote->price);
+            //FIXME: Add an overhead to Uber orders
+            if($shippingQuote->courier_type == 'UberOndemand') {
+                $quotePrice = $quotePrice * 1.1;
+                $quotePrice = $quotePrice + 10;
+            }
+
+            $taxes = WC_Tax::calc_inclusive_tax($quotePrice, WC_Tax::get_shipping_tax_rates());
+            $cost = $quotePrice - array_sum($taxes);
 
             $taxes = WC_Tax::calc_inclusive_tax($quotePrice, WC_Tax::get_shipping_tax_rates());
             $cost = $quotePrice - array_sum($taxes);
 
             $rate = array(
-                'id' => 'Mamis_Shippit_' . $shippingQuote->service_level,
-                'label' => ucwords($shippingQuote->service_level),
+                'id'    => 'Mamis_Shippit_' . $shippingQuote->courier_type,
+                'label' => $this->helper->getFriendlyCourierName($shippingQuote->courier_type,$shippingQuote->service_level), //ucwords($shippingQuote->service_level." Courier"),
                 'cost' => $cost,
                 'taxes' => $taxes,
                 'meta_data' => array(
@@ -408,6 +486,9 @@ class Mamis_Shippit_Method extends WC_Shipping_Method
             $taxes = WC_Tax::calc_inclusive_tax($quotePrice, WC_Tax::get_shipping_tax_rates());
             $cost = $quotePrice - array_sum($taxes);
 
+            $taxes = WC_Tax::calc_inclusive_tax($quotePrice, WC_Tax::get_shipping_tax_rates());
+            $cost = $quotePrice - array_sum($taxes);
+
             $rate = array(
                 'id' => sprintf(
                     'Mamis_Shippit_%s_%s_%s',
@@ -416,10 +497,13 @@ class Mamis_Shippit_Method extends WC_Shipping_Method
                     $priorityQuote->delivery_window
                 ),
                 'label' => sprintf(
-                    'Scheduled - Delivered %s between %s',
+                    '%s Courier - Delivered %s between %s',
+                    $this->helper->getFriendlyCourierName($priorityQuote->courier_type,$shippingQuote->service_level),
                     date('d/m/Y', strtotime($priorityQuote->delivery_date)),
                     $priorityQuote->delivery_window_desc
                 ),
+                'cost' => $cost,
+                'taxes' => $taxes,
                 'cost' => $cost,
                 'taxes' => $taxes,
                 'meta_data' => array(
@@ -455,6 +539,39 @@ class Mamis_Shippit_Method extends WC_Shipping_Method
 
         return $quotePrice;
     }
+
+    /**
+     * Checks if we can ship the products in the cart
+     * remove Shippit for some items
+     */
+    private function _canShipDisabledProducts($package)
+    {
+        if ($this->filter_disabled_products == null) {
+            return true;
+        }
+
+        $disallowedProducts = $this->filter_disabled_products;
+
+        $products = $package['contents'];
+        $productIds = array();
+
+        foreach ($products as $itemKey => $product) {
+            $productIds[] = $product['product_id'];
+        }
+
+        if (!empty($disallowedProducts)) {
+            // If item is enabled return false
+            if ($productIds = array_intersect($productIds, $disallowedProducts)) {
+                $this->log->info(
+                    'Can\'t Ship Products - some disabled. Skipping quote'
+                );
+
+                return false;
+            }
+        }
+
+        return true;
+}
 
     /**
      * Determine if the quote package content contains items we can quote on

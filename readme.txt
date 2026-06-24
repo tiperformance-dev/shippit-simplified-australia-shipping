@@ -69,6 +69,12 @@ Go to www.shippit.com and sign up for an account. You'll find your API Key in th
 - Ensure the shipping rates provided by shippit includes calculations as to the taxable amount associated with Shipping
 
 
+= 2.0.2 =
+
+### Fixed
+- Ensure the shipping rates provided by shippit includes calculations as to the taxable amount associated with Shipping
+
+
 = 2.0.1 =
 
 ### Fixed

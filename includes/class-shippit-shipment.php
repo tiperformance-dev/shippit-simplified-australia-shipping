@@ -234,7 +234,7 @@ class Mamis_Shippit_Shipment
         }
 
         // Add order comment for when items are shipped
-        $orderComment = 'The following items have been marked as Shipped in Shippit..<br>';
+        $orderComment = 'The following items have been marked as Shipped in Shippit:<br>';
         $orderItemsShipped = array();
 
         foreach ($requestItems as $requestItem) {
@@ -313,9 +313,9 @@ class Mamis_Shippit_Shipment
         // Add order comment for shipped items
         $order->add_order_note($orderComment, 0);
 
-        // If all items have been shipped, change the order status to completed
-        if ($totalItemsShipped >= $totalItemsShippable) {
-            $order->update_status('completed', 'Order has been shipped with Shippit');
+        // If all items have been shipped and the merchant has enabled auto completion, change the order status to completed
+        if ($totalItemsShipped >= $totalItemsShippable && get_option('wc_settings_shippit_completion_enabled') == 'yes') {
+            $order->update_status('completed', 'Order has been shipped with Shippit, completing order. ');
 
             add_action(
                 'woocommerce_order_status_completed_notification',
@@ -323,7 +323,9 @@ class Mamis_Shippit_Shipment
                 10,
                 2
             );
-        }
+        } elseif ($totalItemsShipped >= $totalItemsShippable) {
+			// 2024-02-27 suppress $order->add_order_note('Order has been shipped with Shippit, not auto completing order. ', 0);
+		}
 
         // Update the total of all items shipped
         $order->update_meta_data('_mamis_shippit_shipped_items', $totalItemsShipped);
