@@ -223,6 +223,12 @@ class Mamis_Shippit_Api
             return false;
         }
 
+        if (!$quote || !isset($quote->response)) {
+            $this->log->warning('getQuote: missing response property in API response');
+
+            return false;
+        }
+
         return $quote->response;
     }
 
@@ -242,6 +248,12 @@ class Mamis_Shippit_Api
             $order = $this->call('POST', 'orders', $requestData, false);
         }
         catch (Exception $e) {
+            return false;
+        }
+
+        if (!$order || !isset($order->response)) {
+            $this->log->warning('createOrder: missing response property in API response');
+
             return false;
         }
 
