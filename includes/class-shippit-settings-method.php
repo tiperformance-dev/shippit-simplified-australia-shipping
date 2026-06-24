@@ -76,10 +76,14 @@ class Mamis_Shippit_Settings_Method
 			'title' => __('Disabled Products', 'woocommerce-shippit'),
 			'description' => __('The products disabled for quoting by Shippit', 'woocommerce-shippit'),
 			'desc_tip' => true,
-			'class' => 'wc-enhanced-select',
+			'class' => 'wc-product-search',
 			'default' => '',
 			'type' => 'multiselect',
 			'options' => $this->_getProducts(),
+			'custom_attributes' => [
+				'data-placeholder' => __('Search for a product&hellip;', 'woocommerce-shippit'),
+				'data-action'      => 'woocommerce_json_search_products_and_variations',
+			],
         ];
 
         $fields['filter_attribute'] = [
@@ -143,28 +147,44 @@ class Mamis_Shippit_Settings_Method
     }
 
     /**
-     * Get products with id/name for a multiselect
+     * Get products with id/name for a multiselect.
      *
-     * @return array     An associative array of product ids and name
+     * Only fetches currently-saved product IDs from the instance settings so
+     * that pre-selected options render correctly. New products are found via
+     * the wc-product-search AJAX field rather than loading the full catalogue.
+     *
+     * @return array An associative array of product ids and name
      */
     private function _getProducts()
     {
-        $productArgs = array(
-            'post_type' => 'product',
-            'posts_per_page' => -1,
-            'cache_results' => false
-        );
-
         $productOptions = array();
 
-        //FIXME -- only run slow query if in admin (why is any of this code running in admin anyway?)
-        if( false !== strpos( $_SERVER['REQUEST_URI'], 'page=wc-settings&tab=shipping') ) {
+        // Resolve the instance_id from the URL so we can read the saved setting
+        // for this specific method instance without a full WC bootstrap.
+        $instance_id = isset( $_GET['instance_id'] ) ? absint( $_GET['instance_id'] ) : 0;
 
-                $products = get_posts($productArgs);
+        if ( ! $instance_id ) {
+            return $productOptions;
+        }
 
-                foreach ($products as $product) {
-                    $productOptions[$product->ID] = __($product->post_title, 'woocommerce-shippit');
-                }
+        $instance_settings = get_option( 'woocommerce_mamis_shippit_' . $instance_id . '_settings', array() );
+        $saved_ids         = isset( $instance_settings['filter_disabled_products'] )
+            ? array_filter( array_map( 'absint', (array) $instance_settings['filter_disabled_products'] ) )
+            : array();
+
+        if ( empty( $saved_ids ) ) {
+            return $productOptions;
+        }
+
+        $products = get_posts( array(
+            'post_type'      => 'product',
+            'post__in'       => $saved_ids,
+            'posts_per_page' => count( $saved_ids ),
+            'cache_results'  => false,
+        ) );
+
+        foreach ( $products as $product ) {
+            $productOptions[ $product->ID ] = $product->post_title;
         }
 
         return $productOptions;
