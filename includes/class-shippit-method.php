@@ -420,17 +420,7 @@ class Mamis_Shippit_Method extends WC_Shipping_Method
             $cost = $quotePrice - array_sum($taxes);
 
             $baseLabel = $this->helper->getFriendlyCourierName($shippingQuote->courier_type, $shippingQuote->service_level);
-
-            if (!empty($quote->delivery_date)) {
-                $displayDate = $this->eddHandlingEnabled && $this->eddHandlingDays > 0
-                    ? $this->addBusinessDays($quote->delivery_date, $this->eddHandlingDays)
-                    : date('d/m/Y', strtotime($quote->delivery_date));
-                $label = $baseLabel . ' - Est. delivery ' . $displayDate;
-            } elseif ($this->eddHandlingEnabled && $this->eddHandlingDays > 0) {
-                $label = $baseLabel . ' - Allow ' . $this->eddHandlingDays . ' business day' . ($this->eddHandlingDays > 1 ? 's' : '') . ' for dispatch';
-            } else {
-                $label = $baseLabel;
-            }
+            $label = $this->buildEddLabel($baseLabel, $quote);
 
             $rate = array(
                 // unique id for each rate
@@ -468,17 +458,7 @@ class Mamis_Shippit_Method extends WC_Shipping_Method
             $cost = $quotePrice - array_sum($taxes);
 
             $baseLabel = $this->helper->getFriendlyCourierName($shippingQuote->courier_type, $shippingQuote->service_level);
-
-            if (!empty($quote->delivery_date)) {
-                $displayDate = $this->eddHandlingEnabled && $this->eddHandlingDays > 0
-                    ? $this->addBusinessDays($quote->delivery_date, $this->eddHandlingDays)
-                    : date('d/m/Y', strtotime($quote->delivery_date));
-                $label = $baseLabel . ' - Est. delivery ' . $displayDate;
-            } elseif ($this->eddHandlingEnabled && $this->eddHandlingDays > 0) {
-                $label = $baseLabel . ' - Allow ' . $this->eddHandlingDays . ' business day' . ($this->eddHandlingDays > 1 ? 's' : '') . ' for dispatch';
-            } else {
-                $label = $baseLabel;
-            }
+            $label = $this->buildEddLabel($baseLabel, $quote);
 
             $rate = array(
                 'id'    => 'Mamis_Shippit_' . $shippingQuote->courier_type,
@@ -674,6 +654,45 @@ class Mamis_Shippit_Method extends WC_Shipping_Method
                     && $shippingMethod->enabled == 'yes';
             }
         }
+    }
+
+    /**
+     * Build the shipping label with an EDD suffix for standard/express quotes.
+     *
+     * Priority order:
+     *  1. delivery_date from API  → "Est. delivery DD/MM/YYYY" (+ handling days)
+     *  2. estimated_transit_time  → parse business-day count, add handling days, compute date
+     *  3. Handling enabled only   → "Allow X business days for dispatch"
+     *  4. Fallback                → base label unchanged
+     *
+     * @param string $baseLabel
+     * @param object $quote
+     * @return string
+     */
+    protected function buildEddLabel(string $baseLabel, object $quote): string
+    {
+        if (!empty($quote->delivery_date)) {
+            $displayDate = $this->eddHandlingEnabled && $this->eddHandlingDays > 0
+                ? $this->addBusinessDays($quote->delivery_date, $this->eddHandlingDays)
+                : date('d/m/Y', strtotime($quote->delivery_date));
+            return $baseLabel . ' - Est. delivery ' . $displayDate;
+        }
+
+        if (!empty($quote->estimated_transit_time)) {
+            preg_match('/(\d+)/', $quote->estimated_transit_time, $matches);
+            $transitDays = isset($matches[1]) ? (int) $matches[1] : 0;
+            $totalDays = $transitDays + ($this->eddHandlingEnabled ? $this->eddHandlingDays : 0);
+            if ($totalDays > 0) {
+                $displayDate = $this->addBusinessDays(date('Y-m-d'), $totalDays);
+                return $baseLabel . ' - Est. delivery ' . $displayDate;
+            }
+        }
+
+        if ($this->eddHandlingEnabled && $this->eddHandlingDays > 0) {
+            return $baseLabel . ' - Allow ' . $this->eddHandlingDays . ' business day' . ($this->eddHandlingDays > 1 ? 's' : '') . ' for dispatch';
+        }
+
+        return $baseLabel;
     }
 
     /**
