@@ -251,10 +251,14 @@ class Mamis_Shippit_Api
             return false;
         }
 
-        if (!$order || !isset($order->response)) {
+        if (!$order) {
+            return false;
+        }
+
+        if (!isset($order->response)) {
             $this->log->warning('createOrder: missing response property in API response');
 
-            return false;
+            return $order;
         }
 
         return $order->response;

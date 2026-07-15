@@ -242,7 +242,7 @@ class Mamis_Shippit_Order
             $orderData->toArray()
         );
 
-        if ($apiResponse && $apiResponse->tracking_number) {
+        if ($apiResponse && isset($apiResponse->tracking_number)) {
             $order->update_meta_data('_mamis_shippit_sync', 'true');
             $order->save_meta_data();
 
