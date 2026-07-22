@@ -202,7 +202,7 @@ class Mamis_Shippit_Helper
             'Eparcel' => 'Standard Post',
             'CouriersPlease' => 'Couriers Please',
 			'CouriersPleaseLMU' => 'Couriers Please',
-            'AlliedExpressOvernight' => 'Allied Express',
+            'AlliedExpressOvernight' => 'Allied',
             'Fastway' => 'Fastway',
             'AramexAuNz' => 'Aramex',
             'Tnt' => 'TNT',
