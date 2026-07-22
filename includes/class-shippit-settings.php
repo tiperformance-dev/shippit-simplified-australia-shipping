@@ -423,11 +423,25 @@ class Mamis_Shippit_Settings
                 'desc_tip' => true,
             ),
 
+            'edd_display_enabled' => array(
+                'id'       => 'wc_settings_shippit_edd_display_enabled',
+                'title'    => __('Display EDD on Shipping Options', 'woocommerce-shippit'),
+                'class'    => 'wc-enhanced-select',
+                'default'  => 'no',
+                'type'     => 'select',
+                'desc'     => 'Show estimated delivery dates on shipping options at cart and checkout.',
+                'desc_tip' => true,
+                'options'  => array(
+                    'no'  => __('No', 'woocommerce-shippit'),
+                    'yes' => __('Yes', 'woocommerce-shippit'),
+                ),
+            ),
+
             'edd_handling_enabled' => array(
                 'id'       => 'wc_settings_shippit_edd_handling_enabled',
                 'title'    => __('Enable Handling Time on EDD', 'woocommerce-shippit'),
                 'class'    => 'wc-enhanced-select',
-                'default'  => 'no',
+                'default'  => 'yes',
                 'type'     => 'select',
                 'desc'     => 'Add business days to Shippit delivery dates to account for packing/handling time before dispatch.',
                 'desc_tip' => true,

@@ -69,6 +69,11 @@ class Mamis_Shippit_Method extends WC_Shipping_Method
     /**
      * @var bool
      */
+    protected $eddDisplayEnabled;
+
+    /**
+     * @var bool
+     */
     protected $eddHandlingEnabled;
 
     /**
@@ -119,6 +124,7 @@ class Mamis_Shippit_Method extends WC_Shipping_Method
         $this->filter_attribute_value  = $this->get_option('filter_attribute_value');
         $this->margin                  = $this->get_option('margin');
         $this->margin_amount           = $this->get_option('margin_amount');
+        $this->eddDisplayEnabled       = get_option('wc_settings_shippit_edd_display_enabled', 'yes') === 'yes';
         $this->eddHandlingEnabled      = get_option('wc_settings_shippit_edd_handling_enabled', 'no') === 'yes';
         $this->eddHandlingDays         = (int) get_option('wc_settings_shippit_edd_handling_days', 1);
 
@@ -420,7 +426,7 @@ class Mamis_Shippit_Method extends WC_Shipping_Method
             $cost = $quotePrice - array_sum($taxes);
 
             $baseLabel = $this->helper->getFriendlyCourierName($shippingQuote->courier_type, $shippingQuote->service_level);
-            $label = $this->buildEddLabel($baseLabel, $quote);
+            $label = $this->eddDisplayEnabled ? $this->buildEddLabel($baseLabel, $quote) : $baseLabel;
 
             $rate = array(
                 // unique id for each rate
@@ -458,7 +464,7 @@ class Mamis_Shippit_Method extends WC_Shipping_Method
             $cost = $quotePrice - array_sum($taxes);
 
             $baseLabel = $this->helper->getFriendlyCourierName($shippingQuote->courier_type, $shippingQuote->service_level);
-            $label = $this->buildEddLabel($baseLabel, $quote);
+            $label = $this->eddDisplayEnabled ? $this->buildEddLabel($baseLabel, $quote) : $baseLabel;
 
             $rate = array(
                 'id'    => 'Mamis_Shippit_' . $shippingQuote->courier_type,
