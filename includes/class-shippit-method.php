@@ -209,6 +209,10 @@ class Mamis_Shippit_Method extends WC_Shipping_Method
         $isExpressAvailable = in_array('express', $this->allowed_methods);
         $isStandardAvailable = in_array('standard', $this->allowed_methods);
 
+        if ($isPriorityAvailable) {
+            $isPriorityAvailable = $this->isPriorityAvailableByStock($quoteContents);
+        }
+
         $dropoffSuburb = $quoteDestination['city'];
         $dropoffPostcode = $quoteDestination['postcode'];
         $dropoffState = $quoteDestination['state'];
@@ -640,5 +644,71 @@ class Mamis_Shippit_Method extends WC_Shipping_Method
                     && $shippingMethod->enabled == 'yes';
             }
         }
+    }
+
+    /**
+     * Check whether Priority shipping should be offered based on QB Stock on Hand.
+     * Returns false if any cart item's QB SOH is below the quantity in the cart.
+     *
+     * @param array $quoteContents
+     * @return bool
+     */
+    protected function isPriorityAvailableByStock(array $quoteContents): bool
+    {
+        global $wpdb;
+
+        // Build a map of SKU → required cart quantity, skipping items we can't resolve
+        $skuToQty = [];
+
+        foreach ($quoteContents as $cartItem) {
+            $productId = !empty($cartItem['variation_id']) ? $cartItem['variation_id'] : $cartItem['product_id'];
+            $product = wc_get_product($productId);
+
+            if (!$product) {
+                continue;
+            }
+
+            $sku = $product->get_sku();
+
+            if (empty($sku)) {
+                $this->log->info(sprintf('Priority stock check: product ID %d has no SKU, skipping', $productId));
+                continue;
+            }
+
+            $skuToQty[$sku] = (int) $cartItem['quantity'];
+        }
+
+        if (empty($skuToQty)) {
+            return true;
+        }
+
+        // Fetch all SOH values in a single batched query
+        $skus = array_keys($skuToQty);
+        $placeholders = implode(',', array_fill(0, count($skus), '%s'));
+
+        $rows = $wpdb->get_results(
+            $wpdb->prepare("SELECT sku, soh FROM tip_staging.qb_inventory WHERE sku IN ($placeholders)", $skus),
+            ARRAY_A
+        );
+
+        if ($wpdb->last_error) {
+            $this->log->error('QB inventory query failed: ' . $wpdb->last_error);
+            return true; // fail open — don't hide priority on transient DB errors
+        }
+
+        $sohMap = array_column($rows, 'soh', 'sku');
+
+        foreach ($skuToQty as $sku => $cartQty) {
+            $soh = isset($sohMap[$sku]) ? (int) $sohMap[$sku] : null;
+
+            if ($soh === null || $soh < $cartQty) {
+                $this->log->info(
+                    sprintf('Priority shipping hidden: QB SOH for SKU %s is %s, cart qty is %d', $sku, $soh ?? 'not found', $cartQty)
+                );
+                return false;
+            }
+        }
+
+        return true;
     }
 }
