@@ -686,6 +686,11 @@ class Mamis_Shippit_Method extends WC_Shipping_Method
         $skus = array_keys($skuToQty);
         $placeholders = implode(',', array_fill(0, count($skus), '%s'));
 
+        if (!$wpdb->get_var("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='tip_staging' AND table_name='qb_inventory'")) {
+            $this->log->warning('QB inventory table not found — skipping SOH check');
+            return true;
+        }
+
         $rows = $wpdb->get_results(
             $wpdb->prepare("SELECT sku, soh FROM tip_staging.qb_inventory WHERE sku IN ($placeholders)", $skus),
             ARRAY_A
