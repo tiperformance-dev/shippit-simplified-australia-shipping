@@ -67,6 +67,21 @@ class Mamis_Shippit_Method extends WC_Shipping_Method
     protected $margin_amount;
 
     /**
+     * @var bool
+     */
+    protected $eddDisplayEnabled;
+
+    /**
+     * @var bool
+     */
+    protected $eddHandlingEnabled;
+
+    /**
+     * @var int
+     */
+    protected $eddHandlingDays;
+
+    /**
      * Constructor.
      */
     public function __construct(int $instance_id = 0)
@@ -109,6 +124,9 @@ class Mamis_Shippit_Method extends WC_Shipping_Method
         $this->filter_attribute_value  = $this->get_option('filter_attribute_value');
         $this->margin                  = $this->get_option('margin');
         $this->margin_amount           = $this->get_option('margin_amount');
+        $this->eddDisplayEnabled       = get_option('wc_settings_shippit_edd_display_enabled', 'yes') === 'yes';
+        $this->eddHandlingEnabled      = get_option('wc_settings_shippit_edd_handling_enabled', 'no') === 'yes';
+        $this->eddHandlingDays         = (int) get_option('wc_settings_shippit_edd_handling_days', 1);
 
         wp_enqueue_script('shippit-script');
 
@@ -411,17 +429,17 @@ class Mamis_Shippit_Method extends WC_Shipping_Method
             $taxes = WC_Tax::calc_inclusive_tax($quotePrice, WC_Tax::get_shipping_tax_rates());
             $cost = $quotePrice - array_sum($taxes);
 
-            $taxes = WC_Tax::calc_inclusive_tax($quotePrice, WC_Tax::get_shipping_tax_rates());
-            $cost = $quotePrice - array_sum($taxes);
+            $baseLabel = $this->helper->getFriendlyCourierName($shippingQuote->courier_type, $shippingQuote->service_level);
+            $label = $this->eddDisplayEnabled ? $this->buildEddLabel($baseLabel, $quote) : $baseLabel;
 
             $rate = array(
                 // unique id for each rate
                 'id'    => 'Mamis_Shippit_' . $shippingQuote->courier_type,
-                'label' => $this->helper->getFriendlyCourierName($shippingQuote->courier_type,$shippingQuote->service_level), //ucwords($shippingQuote->service_level." Courier"),
-                'cost' => $cost,
+                'label' => $label,
+                'cost'  => $cost,
                 'taxes' => $taxes,
                 'meta_data' => array(
-                    'service_level' => $shippingQuote->service_level,
+                    'service_level'      => $shippingQuote->service_level,
                     'courier_allocation' => $shippingQuote->courier_type,
                 ),
             );
@@ -441,7 +459,7 @@ class Mamis_Shippit_Method extends WC_Shipping_Method
         foreach ($shippingQuote->quotes as $quote) {
             $quotePrice = $this->getQuotePrice($quote->price);
             //FIXME: Add an overhead to Uber orders
-            if($shippingQuote->courier_type == 'UberOndemand') {
+            if ($shippingQuote->courier_type == 'UberOndemand') {
                 $quotePrice = $quotePrice * 1.1;
                 $quotePrice = $quotePrice + 10;
             }
@@ -449,16 +467,16 @@ class Mamis_Shippit_Method extends WC_Shipping_Method
             $taxes = WC_Tax::calc_inclusive_tax($quotePrice, WC_Tax::get_shipping_tax_rates());
             $cost = $quotePrice - array_sum($taxes);
 
-            $taxes = WC_Tax::calc_inclusive_tax($quotePrice, WC_Tax::get_shipping_tax_rates());
-            $cost = $quotePrice - array_sum($taxes);
+            $baseLabel = $this->helper->getFriendlyCourierName($shippingQuote->courier_type, $shippingQuote->service_level);
+            $label = $this->eddDisplayEnabled ? $this->buildEddLabel($baseLabel, $quote) : $baseLabel;
 
             $rate = array(
                 'id'    => 'Mamis_Shippit_' . $shippingQuote->courier_type,
-                'label' => $this->helper->getFriendlyCourierName($shippingQuote->courier_type,$shippingQuote->service_level), //ucwords($shippingQuote->service_level." Courier"),
-                'cost' => $cost,
+                'label' => $label,
+                'cost'  => $cost,
                 'taxes' => $taxes,
                 'meta_data' => array(
-                    'service_level' => $shippingQuote->service_level,
+                    'service_level'      => $shippingQuote->service_level,
                     'courier_allocation' => $shippingQuote->courier_type,
                 ),
             );
@@ -482,7 +500,6 @@ class Mamis_Shippit_Method extends WC_Shipping_Method
                 break;
             }
 
-            // Increase the timeslot count
             $timeSlotCount++;
 
             $quotePrice = $this->getQuotePrice($priorityQuote->price);
@@ -490,8 +507,13 @@ class Mamis_Shippit_Method extends WC_Shipping_Method
             $taxes = WC_Tax::calc_inclusive_tax($quotePrice, WC_Tax::get_shipping_tax_rates());
             $cost = $quotePrice - array_sum($taxes);
 
-            $taxes = WC_Tax::calc_inclusive_tax($quotePrice, WC_Tax::get_shipping_tax_rates());
-            $cost = $quotePrice - array_sum($taxes);
+            if (!empty($priorityQuote->delivery_date)) {
+                $displayDeliveryDate = $this->eddHandlingEnabled && $this->eddHandlingDays > 0
+                    ? $this->addBusinessDays($priorityQuote->delivery_date, $this->eddHandlingDays)
+                    : date('d/m/Y', strtotime($priorityQuote->delivery_date));
+            } else {
+                $displayDeliveryDate = 'TBD';
+            }
 
             $rate = array(
                 'id' => sprintf(
@@ -502,19 +524,17 @@ class Mamis_Shippit_Method extends WC_Shipping_Method
                 ),
                 'label' => sprintf(
                     '%s Courier - Delivered %s between %s',
-                    $this->helper->getFriendlyCourierName($priorityQuote->courier_type,$shippingQuote->service_level),
-                    date('d/m/Y', strtotime($priorityQuote->delivery_date)),
+                    $this->helper->getFriendlyCourierName($priorityQuote->courier_type, $shippingQuote->service_level),
+                    $displayDeliveryDate,
                     $priorityQuote->delivery_window_desc
                 ),
-                'cost' => $cost,
-                'taxes' => $taxes,
-                'cost' => $cost,
+                'cost'  => $cost,
                 'taxes' => $taxes,
                 'meta_data' => array(
-                    'service_level' => $shippingQuote->service_level,
+                    'service_level'      => $shippingQuote->service_level,
                     'courier_allocation' => $priorityQuote->courier_type,
-                    'delivery_date' => $priorityQuote->delivery_date,
-                    'delivery_window' => $priorityQuote->delivery_window
+                    'delivery_date'      => $priorityQuote->delivery_date,
+                    'delivery_window'    => $priorityQuote->delivery_window,
                 ),
             );
 
@@ -715,5 +735,77 @@ class Mamis_Shippit_Method extends WC_Shipping_Method
         }
 
         return true;
+    }
+
+    /**
+     * Build the shipping label with an EDD suffix for standard/express quotes.
+     *
+     * Priority order:
+     *  1. delivery_date from API  → "Est. delivery DD/MM/YYYY" (+ handling days)
+     *  2. estimated_transit_time  → parse business-day count, add handling days, compute date
+     *  3. Handling enabled only   → "Allow X business days for dispatch"
+     *  4. Fallback                → base label unchanged
+     *
+     * @param string $baseLabel
+     * @param object $quote
+     * @return string
+     */
+    protected function buildEddLabel(string $baseLabel, object $quote): string
+    {
+        if (!empty($quote->delivery_date)) {
+            $displayDate = $this->eddHandlingEnabled && $this->eddHandlingDays > 0
+                ? $this->addBusinessDays($quote->delivery_date, $this->eddHandlingDays)
+                : date('d/m/Y', strtotime($quote->delivery_date));
+            return $baseLabel . ' - Est. delivery ' . $displayDate;
+        }
+
+        if (!empty($quote->estimated_transit_time)) {
+            preg_match('/(\d+)/', $quote->estimated_transit_time, $matches);
+            $transitDays = isset($matches[1]) ? (int) $matches[1] : 0;
+            $totalDays = $transitDays + ($this->eddHandlingEnabled ? $this->eddHandlingDays : 0);
+            if ($totalDays > 0) {
+                $displayDate = $this->addBusinessDays(date('Y-m-d'), $totalDays);
+                return $baseLabel . ' - Est. delivery ' . $displayDate;
+            }
+        }
+
+        if ($this->eddHandlingEnabled && $this->eddHandlingDays > 0) {
+            return $baseLabel . ' - Allow ' . $this->eddHandlingDays . ' business day' . ($this->eddHandlingDays > 1 ? 's' : '') . ' for dispatch';
+        }
+
+        return $baseLabel;
+    }
+
+    /**
+     * Add a number of business days (Mon–Fri) to a date string and return it formatted as d/m/Y.
+     *
+     * @param string $dateStr  Date parseable by DateTime (e.g. '2026-06-25')
+     * @param int    $days     Number of business days to add
+     * @return string          Formatted date string (d/m/Y)
+     */
+    protected function addBusinessDays(string $dateStr, int $days): string
+    {
+        if ($days <= 0) {
+            return date('d/m/Y', strtotime($dateStr));
+        }
+
+        try {
+            $dt = new DateTime($dateStr);
+        } catch (Exception $e) {
+            $this->log->error(sprintf('addBusinessDays: invalid date string "%s"', $dateStr));
+            return date('d/m/Y');
+        }
+
+        $added = 0;
+
+        while ($added < $days) {
+            $dt->modify('+1 day');
+            $dow = (int) $dt->format('N'); // 1=Mon … 7=Sun
+            if ($dow < 6) {
+                $added++;
+            }
+        }
+
+        return $dt->format('d/m/Y');
     }
 }

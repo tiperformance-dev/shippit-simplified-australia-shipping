@@ -414,6 +414,58 @@ class Mamis_Shippit_Settings
                 'id' => 'shippit-settings-fulfillment-end',
                 'type' => 'sectionend',
             ),
+
+            'edd_section_title' => array(
+                'id'       => 'shippit-settings-edd',
+                'name'     => __('EDD / Handling Time', 'woocommerce-shippit'),
+                'type'     => 'title',
+                'desc'     => 'Configure how estimated delivery dates are displayed at Cart and Checkout.',
+                'desc_tip' => true,
+            ),
+
+            'edd_display_enabled' => array(
+                'id'       => 'wc_settings_shippit_edd_display_enabled',
+                'title'    => __('Display EDD on Shipping Options', 'woocommerce-shippit'),
+                'class'    => 'wc-enhanced-select',
+                'default'  => 'no',
+                'type'     => 'select',
+                'desc'     => 'Show estimated delivery dates on shipping options at cart and checkout.',
+                'desc_tip' => true,
+                'options'  => array(
+                    'no'  => __('No', 'woocommerce-shippit'),
+                    'yes' => __('Yes', 'woocommerce-shippit'),
+                ),
+            ),
+
+            'edd_handling_enabled' => array(
+                'id'       => 'wc_settings_shippit_edd_handling_enabled',
+                'title'    => __('Enable Handling Time on EDD', 'woocommerce-shippit'),
+                'class'    => 'wc-enhanced-select',
+                'default'  => 'yes',
+                'type'     => 'select',
+                'desc'     => 'Add business days to Shippit delivery dates to account for packing/handling time before dispatch.',
+                'desc_tip' => true,
+                'options'  => array(
+                    'no'  => __('No', 'woocommerce-shippit'),
+                    'yes' => __('Yes', 'woocommerce-shippit'),
+                ),
+            ),
+
+            'edd_handling_days' => array(
+                'id'                => 'wc_settings_shippit_edd_handling_days',
+                'title'             => __('Handling Days', 'woocommerce-shippit'),
+                'default'           => '1',
+                'type'              => 'text',
+                'desc'              => 'Number of business days (Mon–Fri) to add to the EDD shown on the shipping method label.',
+                'desc_tip'          => true,
+                'css'               => 'width: 60px;',
+                'custom_attributes' => array('type' => 'number', 'min' => '0'),
+            ),
+
+            'edd_section_end' => array(
+                'id'   => 'shippit-settings-edd-end',
+                'type' => 'sectionend',
+            ),
         );
 
         return apply_filters('wc_settings_shippit_settings', $settings);
