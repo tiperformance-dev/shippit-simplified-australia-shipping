@@ -124,7 +124,7 @@ class Mamis_Shippit_Method extends WC_Shipping_Method
         $this->filter_attribute_value  = $this->get_option('filter_attribute_value');
         $this->margin                  = $this->get_option('margin');
         $this->margin_amount           = $this->get_option('margin_amount');
-        $this->eddDisplayEnabled       = get_option('wc_settings_shippit_edd_display_enabled', 'yes') === 'yes';
+        $this->eddDisplayEnabled       = get_option('wc_settings_shippit_edd_display_enabled', 'no') === 'yes';
         $this->eddHandlingEnabled      = get_option('wc_settings_shippit_edd_handling_enabled', 'no') === 'yes';
         $this->eddHandlingDays         = (int) get_option('wc_settings_shippit_edd_handling_days', 1);
 
