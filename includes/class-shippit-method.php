@@ -508,9 +508,7 @@ class Mamis_Shippit_Method extends WC_Shipping_Method
             $cost = $quotePrice - array_sum($taxes);
 
             if (!empty($priorityQuote->delivery_date)) {
-                $displayDeliveryDate = $this->eddHandlingEnabled && $this->eddHandlingDays > 0
-                    ? $this->addBusinessDays($priorityQuote->delivery_date, $this->eddHandlingDays)
-                    : date('d/m/Y', strtotime($priorityQuote->delivery_date));
+                $displayDeliveryDate = date('d/m/Y', strtotime($priorityQuote->delivery_date));
             } else {
                 $displayDeliveryDate = 'TBD';
             }
