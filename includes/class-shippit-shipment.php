@@ -247,7 +247,7 @@ class Mamis_Shippit_Shipment
             $productSku = (isset($requestItem->sku) ? $requestItem->sku : null);
             $productVariationId = null;
 
-            if (strpos($productSku, '|') !== false) {
+            if (!empty($productSku) && strpos($productSku, '|') !== false) {
                 $skuData = explode('|', $productSku);
                 $productVariationId = end($skuData);
 

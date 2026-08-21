@@ -14,11 +14,17 @@ class Mamis_Shippit_Order
     private $api;
 
     /**
+     * @var Mamis_Shippit_Log
+     */
+    private $log;
+
+    /**
      * Initialise the class
      */
     public function __construct()
     {
         $this->api = new Mamis_Shippit_Api();
+        $this->log = new Mamis_Shippit_Log(['area' => 'order']);
     }
 
     /**
@@ -224,23 +230,50 @@ class Mamis_Shippit_Order
     {
         // Get the orders_item_id meta with key shipping
         $order = new WC_Order($orderId);
-        $orderItems = $order->get_items();
 
-        // If there are no order items, return early
-        if (count($orderItems) === 0) {
+        $orderData = (new Mamis_Shippit_Data_Mapper_Order())
+            ->__invoke($order)
+            ->toArray();
+
+        // Shippit requires at least one parcel to book a shipment.
+        // If the order has no shippable items, and a default parcel has not
+        // been configured, the order cannot be synced - bail with a note
+        if (empty($orderData['parcel_attributes'])) {
+            // Logged at error level intentionally - the logger threshold is
+            // raised to WC_Log_Levels::ERROR unless Debug Mode is enabled,
+            // and this skip must be recorded regardless of that setting
+            $this->log->error(
+                'The order was not synced with Shippit, as it does not contain any shippable items',
+                [
+                    'order_id' => $orderId,
+                    'order_item_count' => count($order->get_items()),
+                ]
+            );
+
+            $orderComment = 'Order not synced with Shippit - the order does not contain any shippable items.';
+
+            $isDefaultParcelEnabled = get_option(
+                'wc_settings_shippit_default_parcel_enabled',
+                Mamis_Shippit_Settings::DEFAULT_PARCEL_ENABLED
+            );
+
+            if ($isDefaultParcelEnabled !== 'yes') {
+                $orderComment .= ' Enable "Default parcel for order with no items" in the Shippit Order Sync Settings to sync orders of this type.';
+            }
+
+            $order->add_order_note($orderComment);
+
+            // Mark the order as synced so the hourly sync does not repeatedly
+            // add this note. The "Send to Shippit" order action resets this
+            // flag, so the order can still be retried manually at any time
             $order->update_meta_data('_mamis_shippit_sync', 'true');
             $order->save_meta_data();
 
             return;
         }
 
-        $orderData = (new Mamis_Shippit_Data_Mapper_Order())
-            ->__invoke($order);
-
         // Send the API request
-        $apiResponse = $this->api->createOrder(
-            $orderData->toArray()
-        );
+        $apiResponse = $this->api->createOrder($orderData);
 
         if ($apiResponse && isset($apiResponse->tracking_number)) {
             $order->update_meta_data('_mamis_shippit_sync', 'true');

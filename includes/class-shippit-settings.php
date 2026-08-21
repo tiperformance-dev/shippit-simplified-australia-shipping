@@ -9,6 +9,22 @@
 class Mamis_Shippit_Settings
 {
     /**
+     * Default parcel defaults
+     *
+     * These are the values shown in the settings form, and are also passed as
+     * the get_option() fallback when the parcel is built - a WooCommerce field
+     * default only pre-fills the form, so without the fallback the feature
+     * would remain inactive until an admin happened to save the settings page.
+     *
+     * @see Mamis_Shippit_Data_Mapper_Order::getDefaultParcel
+     */
+    const DEFAULT_PARCEL_ENABLED = 'yes';
+    const DEFAULT_PARCEL_WEIGHT = '0.5';
+    const DEFAULT_PARCEL_LENGTH = '10';
+    const DEFAULT_PARCEL_WIDTH = '10';
+    const DEFAULT_PARCEL_HEIGHT = '2';
+
+    /**
      * @var Mamis_Shippit_Log
      */
     protected $log;
@@ -204,6 +220,56 @@ class Mamis_Shippit_Settings
                     'all' => __('Yes - Auto-sync all new orders', 'woocommerce-shippit'),
                     'all_shippit' => __('Yes - Auto-sync only orders with Shippit Shipping Methods', 'woocommerce-shippit'),
                ),
+            ),
+
+            'default_parcel_enabled' => array(
+                'id' => 'wc_settings_shippit_default_parcel_enabled',
+                'title' => __('Default parcel for order with no items', 'woocommerce-shippit'),
+                'desc' => __('When an order has no shippable products (ie: an order containing only a fee line), send a single default parcel so the order can still be synced to Shippit. Orders containing only virtual items are never sent.', 'woocommerce-shippit'),
+                'desc_tip' => true,
+                'class' => 'wc-enhanced-select',
+                'default' => self::DEFAULT_PARCEL_ENABLED,
+                'type' => 'select',
+                'options' => array(
+                    'no' => __('No', 'woocommerce-shippit'),
+                    'yes' => __('Yes', 'woocommerce-shippit'),
+                ),
+            ),
+
+            'default_parcel_weight' => array(
+                'id' => 'wc_settings_shippit_default_parcel_weight',
+                'title' => __('Default Parcel Weight', 'woocommerce-shippit'),
+                'desc' => __('The weight of the default parcel, in your store\'s configured weight unit.', 'woocommerce-shippit'),
+                'desc_tip' => true,
+                'default' => self::DEFAULT_PARCEL_WEIGHT,
+                'type' => 'text',
+            ),
+
+            'default_parcel_length' => array(
+                'id' => 'wc_settings_shippit_default_parcel_length',
+                'title' => __('Default Parcel Length', 'woocommerce-shippit'),
+                'desc' => __('The length of the default parcel, in your store\'s configured dimension unit.', 'woocommerce-shippit'),
+                'desc_tip' => true,
+                'default' => self::DEFAULT_PARCEL_LENGTH,
+                'type' => 'text',
+            ),
+
+            'default_parcel_width' => array(
+                'id' => 'wc_settings_shippit_default_parcel_width',
+                'title' => __('Default Parcel Width', 'woocommerce-shippit'),
+                'desc' => __('The width of the default parcel, in your store\'s configured dimension unit.', 'woocommerce-shippit'),
+                'desc_tip' => true,
+                'default' => self::DEFAULT_PARCEL_WIDTH,
+                'type' => 'text',
+            ),
+
+            'default_parcel_height' => array(
+                'id' => 'wc_settings_shippit_default_parcel_height',
+                'title' => __('Default Parcel Height', 'woocommerce-shippit'),
+                'desc' => __('The height of the default parcel, in your store\'s configured dimension unit.', 'woocommerce-shippit'),
+                'desc_tip' => true,
+                'default' => self::DEFAULT_PARCEL_HEIGHT,
+                'type' => 'text',
             ),
 
             'section_order_sync_settings_end' => array(
