@@ -148,9 +148,12 @@ class Mamis_Shippit_Core
 
         // Add Bulk Send to Shippit orders action
         add_action('bulk_actions-edit-shop_order', array($this, 'shippit_send_bulk_orders_action'), 20, 1);
+        // HPOS twin: the wc-orders screen fires the -woocommerce_page_wc-orders variants instead.
+        add_filter('bulk_actions-woocommerce_page_wc-orders', array($this, 'shippit_send_bulk_orders_action'), 20, 1);
 
         // Process Shippit bulk orders send action
         add_action('handle_bulk_actions-edit-shop_order', array($order, 'sendOrders'), 10, 3 );
+        add_filter('handle_bulk_actions-woocommerce_page_wc-orders', array($order, 'sendOrders'), 10, 3 );
 
         add_action('admin_notices', array($this, 'order_sync_notice') );
 
