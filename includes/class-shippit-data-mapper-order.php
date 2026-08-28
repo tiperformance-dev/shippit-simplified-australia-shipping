@@ -11,9 +11,15 @@ class Mamis_Shippit_Data_Mapper_Order extends Mamis_Shippit_Object
     protected $helper;
     protected $order;
 
+    /**
+     * @var Mamis_Shippit_Log
+     */
+    protected $log;
+
     public function __invoke($order)
     {
         $this->helper = new Mamis_Shippit_Helper();
+        $this->log = new Mamis_Shippit_Log(['area' => 'order']);
         $this->order = $order;
 
         $this->mapRetailerReference()
@@ -258,7 +264,7 @@ class Mamis_Shippit_Data_Mapper_Order extends Mamis_Shippit_Object
         $itemsData = array();
         $orderItems = $this->order->get_items();
 
-        
+        $virtualItemCount = 0;
 
         foreach ($orderItems as $orderItem) {
             // 2025-01-15 re-initialise the mapper each time otherwise we send stale product information from the previous item in the order to the API
@@ -271,8 +277,15 @@ class Mamis_Shippit_Data_Mapper_Order extends Mamis_Shippit_Object
 
             $product = $orderItem->get_product();
 
+            // If the linked product no longer exists, skip it
+            if (empty($product)) {
+                continue;
+            }
+
             // If the product is a virtual item, skip it
             if ($product->is_virtual()) {
+                $virtualItemCount++;
+
                 continue;
             }
 
@@ -283,7 +296,104 @@ class Mamis_Shippit_Data_Mapper_Order extends Mamis_Shippit_Object
             )->toArray();
         }
 
+        // If the order has no shippable items, fall back to a default parcel
+        // so that orders such as fee-only orders can still be synced
+        if (empty($itemsData)) {
+            $defaultParcel = $this->getDefaultParcel($virtualItemCount);
+
+            if (!empty($defaultParcel)) {
+                $itemsData[] = $defaultParcel;
+            }
+        }
+
         return $this->setParcelAttributes($itemsData);
+    }
+
+    /**
+     * Retrieve the default parcel to be used when an order
+     * does not contain any shippable products
+     *
+     * Note: The parcel is intentionally sent without a sku, so that the
+     * fulfillment webhook is able to attribute the shipped quantity to
+     * the order - @see Mamis_Shippit_Shipment::updateOrder
+     *
+     * @param int $virtualItemCount The number of virtual items on the order
+     * @return array
+     */
+    protected function getDefaultParcel($virtualItemCount)
+    {
+        // Note: each option is read with its configured default as the fallback,
+        // so the parcel applies on a store that has never saved the settings page
+        $isEnabled = get_option(
+            'wc_settings_shippit_default_parcel_enabled',
+            Mamis_Shippit_Settings::DEFAULT_PARCEL_ENABLED
+        );
+
+        if ($isEnabled !== 'yes') {
+            return array();
+        }
+
+        // If the order only contains virtual items, it is not intended
+        // to be shipped - don't substitute a default parcel
+        if ($virtualItemCount > 0) {
+            return array();
+        }
+
+        $parcelWeight = get_option(
+            'wc_settings_shippit_default_parcel_weight',
+            Mamis_Shippit_Settings::DEFAULT_PARCEL_WEIGHT
+        );
+
+        // A cleared weight field stores an empty string, which is not the same
+        // as the option being absent - fall back to the configured default
+        if (!is_numeric($parcelWeight)) {
+            $parcelWeight = Mamis_Shippit_Settings::DEFAULT_PARCEL_WEIGHT;
+        }
+
+        $parcel = array(
+            'qty' => 1,
+            'weight' => $this->helper->convertWeight($parcelWeight),
+        );
+
+        if (
+            !defined('SHIPPIT_IGNORE_ITEM_DIMENSIONS')
+            || !SHIPPIT_IGNORE_ITEM_DIMENSIONS
+        ) {
+            // Shippit refers to the vertical dimension as depth, WooCommerce as
+            // height - the same mapping Mamis_Shippit_Data_Mapper_Order_Item makes
+            $parcelDimensions = array(
+                'length' => get_option(
+                    'wc_settings_shippit_default_parcel_length',
+                    Mamis_Shippit_Settings::DEFAULT_PARCEL_LENGTH
+                ),
+                'width' => get_option(
+                    'wc_settings_shippit_default_parcel_width',
+                    Mamis_Shippit_Settings::DEFAULT_PARCEL_WIDTH
+                ),
+                'depth' => get_option(
+                    'wc_settings_shippit_default_parcel_height',
+                    Mamis_Shippit_Settings::DEFAULT_PARCEL_HEIGHT
+                ),
+            );
+
+            foreach ($parcelDimensions as $dimension => $value) {
+                if (!is_numeric($value)) {
+                    continue;
+                }
+
+                $parcel[$dimension] = $this->helper->convertDimension($value);
+            }
+        }
+
+        $this->log->info(
+            'Sent using the default parcel',
+            [
+                'order_id' => $this->order->get_id(),
+                'parcel' => $parcel,
+            ]
+        );
+
+        return $parcel;
     }
 
     protected function getLegacyShippingOptions($shippingMethodId)
