@@ -11,9 +11,15 @@ class Mamis_Shippit_Data_Mapper_Order extends Mamis_Shippit_Object
     protected $helper;
     protected $order;
 
+    /**
+     * @var Mamis_Shippit_Log
+     */
+    protected $log;
+
     public function __invoke($order)
     {
         $this->helper = new Mamis_Shippit_Helper();
+        $this->log = new Mamis_Shippit_Log(['area' => 'order']);
         $this->order = $order;
 
         $this->mapRetailerReference()
@@ -378,6 +384,14 @@ class Mamis_Shippit_Data_Mapper_Order extends Mamis_Shippit_Object
                 $parcel[$dimension] = $this->helper->convertDimension($value);
             }
         }
+
+        $this->log->info(
+            'Sent using the default parcel',
+            [
+                'order_id' => $this->order->get_id(),
+                'parcel' => $parcel,
+            ]
+        );
 
         return $parcel;
     }
