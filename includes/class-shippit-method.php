@@ -82,6 +82,11 @@ class Mamis_Shippit_Method extends WC_Shipping_Method
     protected $eddHandlingDays;
 
     /**
+     * @var bool
+     */
+    protected $onDemandAfterHoursEnabled;
+
+    /**
      * Constructor.
      */
     public function __construct(int $instance_id = 0)
@@ -127,6 +132,7 @@ class Mamis_Shippit_Method extends WC_Shipping_Method
         $this->eddDisplayEnabled       = get_option('wc_settings_shippit_edd_display_enabled', 'no') === 'yes';
         $this->eddHandlingEnabled      = get_option('wc_settings_shippit_edd_handling_enabled', 'no') === 'yes';
         $this->eddHandlingDays         = (int) get_option('wc_settings_shippit_edd_handling_days', 1);
+        $this->onDemandAfterHoursEnabled = get_option('wc_settings_shippit_ondemand_afterhours_enabled', 'no') === 'yes';
 
         wp_enqueue_script('shippit-script');
 
@@ -268,15 +274,42 @@ class Mamis_Shippit_Method extends WC_Shipping_Method
             return;
         }
 
-        // set dateorder  as tomorrow after 4pm FIXME this is hard coded
-        $now = new DateTime();
-        $now->setTimezone( new DateTimeZone( get_option( 'timezone_string' ) ) );       
-        // ENABLE THIS LOGIC
-        if ($now->format('Hi') > 1600 AND 1==1) {
-            $quoteDate = $now->modify('+1 day')->format('Y-m-d');
-            $this->log->debug('After 4pm; quote as tomorrow: '.$quoteDate);
-        } else {
-            $quoteDate = '';
+        // Orders placed too late in the day to be prepared before closing are
+        // quoted against a later date, so the couriers return slots we can
+        // actually fulfil. Priority uses order_date; on demand ignores it and
+        // needs pickup_at instead.
+        $now = new DateTime('now', wp_timezone());
+        $quoteDate = '';
+        $onDemandPickupAt = null;
+        $isPastCutoff = null;
+
+        if ($this->onDemandAfterHoursEnabled) {
+            $isPastCutoff = $this->helper->isPastPickupCutoff();
+            $onDemandPickupAt = $this->helper->getOnDemandPickupAt();
+        }
+
+        if ($isPastCutoff === null) {
+            // The previous hard coded rule, used when the feature is off or
+            // the operating hours have not been retrieved from Shippit
+            if ($now->format('Hi') > 1600) {
+                $quoteDate = (clone $now)->modify('+1 day')->format('Y-m-d');
+            }
+        }
+        elseif ($isPastCutoff) {
+            $nextDay = (clone $now)->modify('+1 day');
+
+            // Shippit returns no timeslots for a date the store is closed, so
+            // roll to the next open day rather than the next calendar day
+            $nextOpenDay = $this->helper->getNextOpenDay($nextDay);
+            $quoteDate = ($nextOpenDay === null ? $nextDay : $nextOpenDay)->format('Y-m-d');
+        }
+
+        if ($quoteDate !== '') {
+            $this->log->debug('Past the pickup cutoff; quoting for: ' . $quoteDate);
+        }
+
+        if (!empty($onDemandPickupAt)) {
+            $this->log->debug('On demand pickup scheduled for: ' . $onDemandPickupAt);
         }
 
         $quoteData = array(
@@ -289,8 +322,14 @@ class Mamis_Shippit_Method extends WC_Shipping_Method
             'parcel_attributes' => $this->getParcelAttributes($quoteContents),
             'return_all_quotes' => true,
             'dutiable_amount' => WC()->cart->get_cart_contents_total(),
-        );    
-        
+        );
+
+        // Only sent when the booking has been pushed forward, so the request is
+        // unchanged whenever the feature is off or we are inside trading hours
+        if (!empty($onDemandPickupAt)) {
+            $quoteData['pickup_at'] = $onDemandPickupAt;
+        }
+
         $shippingQuotes = $this->api->getQuote($quoteData);
 
         if ($shippingQuotes) {
@@ -317,7 +356,7 @@ class Mamis_Shippit_Method extends WC_Shipping_Method
                             break;
                         case 'on_demand':
                             if ($isExpressAvailable) {
-                                $this->addExpressQuote($shippingQuote);
+                                $this->addExpressQuote($shippingQuote, $onDemandPickupAt);
                             }
 
                             break;
@@ -452,9 +491,11 @@ class Mamis_Shippit_Method extends WC_Shipping_Method
      * Add a express quote rate(s) to the list of available shipping methods
      *
      * @param object $shippingQuote
+     * @param string|null $pickupAt Set for on demand quotes that have been
+     *                              pushed forward to the next open day
      * @return void
      */
-    protected function addExpressQuote($shippingQuote)
+    protected function addExpressQuote($shippingQuote, $pickupAt = null)
     {
         foreach ($shippingQuote->quotes as $quote) {
             $quotePrice = $this->getQuotePrice($quote->price);
@@ -468,7 +509,15 @@ class Mamis_Shippit_Method extends WC_Shipping_Method
             $cost = $quotePrice - array_sum($taxes);
 
             $baseLabel = $this->helper->getFriendlyCourierName($shippingQuote->courier_type, $shippingQuote->service_level);
-            $label = $this->eddDisplayEnabled ? $this->buildEddLabel($baseLabel, $quote) : $baseLabel;
+
+            if (!empty($pickupAt)) {
+                // The pickup time already includes the handling time, so the
+                // EDD handling days must not be added on top of it
+                $label = $baseLabel . ' (' . $this->helper->formatPickupAtLabel($pickupAt) . ')';
+            }
+            else {
+                $label = $this->eddDisplayEnabled ? $this->buildEddLabel($baseLabel, $quote) : $baseLabel;
+            }
 
             $rate = array(
                 'id'    => 'Mamis_Shippit_' . $shippingQuote->courier_type,
@@ -480,6 +529,11 @@ class Mamis_Shippit_Method extends WC_Shipping_Method
                     'courier_allocation' => $shippingQuote->courier_type,
                 ),
             );
+
+            // Underscored so the raw timestamp is not shown to the customer
+            if (!empty($pickupAt)) {
+                $rate['meta_data']['_pickup_at'] = $pickupAt;
+            }
 
             $this->add_rate($rate);
         }

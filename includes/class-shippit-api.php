@@ -275,6 +275,19 @@ class Mamis_Shippit_Api
     }
 
     /**
+     * Retrieve the merchant operating hours
+     *
+     * Note: unlike getMerchant, this response is not wrapped in a
+     * response property - the working_days array is returned at the top level.
+     *
+     * @return object|bool
+     */
+    public function getOperatingHours()
+    {
+        return $this->call('GET', 'merchants/settings/locations/operating_hours');
+    }
+
+    /**
      * Update the merchant
      *
      * @param array $merchantData

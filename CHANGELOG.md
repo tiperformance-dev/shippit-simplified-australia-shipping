@@ -6,6 +6,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Added support for on demand (Uber Direct) bookings placed outside the store's operating hours, behind the `Allow After Hours Bookings` setting. The pickup time is calculated from the operating hours and handling time held in Shippit, sent as `pickup_at` on the quote and the order, and shown on the delivery method (ie: `Uber Direct (Mon 10:00am)`)
+- Added retrieval of the merchant operating hours and handling time from Shippit when the settings page is saved
+
+### Changed
+- The cutoff for rolling orders forward is now derived from the operating hours held in Shippit (closing time less the handling time) rather than a fixed 4pm, and applies to both Priority and on demand
+- Orders past the cutoff now roll forward to the next open day rather than the next calendar day, as Shippit returns no timeslots for a date the store is closed
+- Renamed the Uber on demand courier to "Uber Direct"
+
 
 ## [v2.0.4]
 
