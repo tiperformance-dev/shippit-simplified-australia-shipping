@@ -628,7 +628,9 @@ class Mamis_Shippit_Settings
                 'class'    => 'wc-enhanced-select',
                 'default'  => 'no',
                 'type'     => 'select',
-                'desc'     => 'Book on demand orders placed outside your operating hours for the next open day, rather than letting them fail. Your operating hours and handling time are read from Shippit when these settings are saved.',
+                'desc'     => 'Book on demand orders placed outside your operating hours for the next open day, '
+                    . 'rather than letting them fail. Your operating hours and handling time are read from '
+                    . 'Shippit when these settings are saved.',
                 'desc_tip' => true,
                 'options'  => array(
                     'no'  => __('No', 'woocommerce-shippit'),
@@ -910,7 +912,9 @@ class Mamis_Shippit_Settings
     public function noticeMerchantScheduleFailed()
     {
         echo '<div class="notice notice-warning">'
-            . '<p>Your Shippit operating hours and handling time could not be retrieved. After hours on demand bookings will be left for Shippit to schedule until the next successful sync.</p>'
+            . '<p>Your Shippit operating hours and handling time could not be retrieved. '
+            . 'After hours on demand bookings will be left for Shippit to schedule '
+            . 'until the next successful sync.</p>'
             . '</div>';
     }
 

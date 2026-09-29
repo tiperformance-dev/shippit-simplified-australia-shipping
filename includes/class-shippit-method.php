@@ -132,7 +132,11 @@ class Mamis_Shippit_Method extends WC_Shipping_Method
         $this->eddDisplayEnabled       = get_option('wc_settings_shippit_edd_display_enabled', 'no') === 'yes';
         $this->eddHandlingEnabled      = get_option('wc_settings_shippit_edd_handling_enabled', 'no') === 'yes';
         $this->eddHandlingDays         = (int) get_option('wc_settings_shippit_edd_handling_days', 1);
-        $this->onDemandAfterHoursEnabled = get_option('wc_settings_shippit_ondemand_afterhours_enabled', 'no') === 'yes';
+
+        $this->onDemandAfterHoursEnabled = get_option(
+            'wc_settings_shippit_ondemand_afterhours_enabled',
+            'no'
+        ) === 'yes';
 
         wp_enqueue_script('shippit-script');
 
