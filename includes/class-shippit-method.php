@@ -820,7 +820,10 @@ class Mamis_Shippit_Method extends WC_Shipping_Method
             $transitDays = isset($matches[1]) ? (int) $matches[1] : 0;
             $totalDays = $transitDays + ($this->eddHandlingEnabled ? $this->eddHandlingDays : 0);
             if ($totalDays > 0) {
-                $displayDate = $this->addBusinessDays(date('Y-m-d'), $totalDays);
+                // wp_date, not date - WordPress fixes PHP's timezone to UTC, so
+                // date() returns yesterday from local midnight until the store's
+                // UTC offset, which dates the estimate a day early
+                $displayDate = $this->addBusinessDays(wp_date('Y-m-d'), $totalDays);
                 return $baseLabel . ' - Est. delivery ' . $displayDate;
             }
         }
@@ -849,7 +852,7 @@ class Mamis_Shippit_Method extends WC_Shipping_Method
             $dt = new DateTime($dateStr);
         } catch (Exception $e) {
             $this->log->error(sprintf('addBusinessDays: invalid date string "%s"', $dateStr));
-            return date('d/m/Y');
+            return wp_date('d/m/Y');
         }
 
         $added = 0;
