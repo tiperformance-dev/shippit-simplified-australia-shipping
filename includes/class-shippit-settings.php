@@ -588,7 +588,11 @@ class Mamis_Shippit_Settings
                 'id'       => 'wc_settings_shippit_edd_handling_enabled',
                 'title'    => __('Enable Handling Time on EDD', 'woocommerce-shippit'),
                 'class'    => 'wc-enhanced-select',
-                'default'  => 'yes',
+                // Matches the get_option fallback in Mamis_Shippit_Method::init.
+                // A field default only pre-fills the form, so a store that has
+                // never saved this page behaves as the fallback - the two must
+                // agree or the form misreports the behaviour.
+                'default'  => 'no',
                 'type'     => 'select',
                 'desc'     => 'Add business days to Shippit delivery dates to account for packing/handling time before dispatch.',
                 'desc_tip' => true,
