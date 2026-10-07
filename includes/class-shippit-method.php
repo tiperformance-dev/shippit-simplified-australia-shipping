@@ -473,7 +473,9 @@ class Mamis_Shippit_Method extends WC_Shipping_Method
             $cost = $quotePrice - array_sum($taxes);
 
             $baseLabel = $this->helper->getFriendlyCourierName($shippingQuote->courier_type, $shippingQuote->service_level);
-            $label = $this->eddDisplayEnabled ? $this->buildEddLabel($baseLabel, $quote) : $baseLabel;
+            $label = $this->eddDisplayEnabled
+                ? $this->buildEddLabel($baseLabel, $quote, $shippingQuote->service_level)
+                : $baseLabel;
 
             $rate = array(
                 // unique id for each rate
@@ -517,10 +519,12 @@ class Mamis_Shippit_Method extends WC_Shipping_Method
             if (!empty($pickupAt)) {
                 // The pickup time already includes the handling time, so the
                 // EDD handling days must not be added on top of it
-                $label = $baseLabel . ' (' . $this->helper->formatPickupAtLabel($pickupAt) . ')';
+                $label = $this->buildDeliveryLabel($baseLabel, $this->helper->formatPickupAtLabel($pickupAt));
             }
             else {
-                $label = $this->eddDisplayEnabled ? $this->buildEddLabel($baseLabel, $quote) : $baseLabel;
+                $label = $this->eddDisplayEnabled
+                    ? $this->buildEddLabel($baseLabel, $quote, $shippingQuote->service_level)
+                    : $baseLabel;
             }
 
             $rate = array(
@@ -571,6 +575,14 @@ class Mamis_Shippit_Method extends WC_Shipping_Method
                 $displayDeliveryDate = 'TBD';
             }
 
+            // The timeslot is a commitment rather than an estimate, so it is
+            // always shown - priority is exempt from the EDD setting
+            $deliveryWhen = $displayDeliveryDate;
+
+            if (!empty($priorityQuote->delivery_window_desc)) {
+                $deliveryWhen .= ' ' . $priorityQuote->delivery_window_desc;
+            }
+
             $rate = array(
                 'id' => sprintf(
                     'Mamis_Shippit_%s_%s_%s',
@@ -578,11 +590,9 @@ class Mamis_Shippit_Method extends WC_Shipping_Method
                     $priorityQuote->delivery_date,
                     $priorityQuote->delivery_window
                 ),
-                'label' => sprintf(
-                    '%s Courier - Delivered %s between %s',
+                'label' => $this->buildDeliveryLabel(
                     $this->helper->getFriendlyCourierName($priorityQuote->courier_type, $shippingQuote->service_level),
-                    $displayDeliveryDate,
-                    $priorityQuote->delivery_window_desc
+                    $deliveryWhen
                 ),
                 'cost'  => $cost,
                 'taxes' => $taxes,
@@ -794,6 +804,46 @@ class Mamis_Shippit_Method extends WC_Shipping_Method
     }
 
     /**
+     * Join a courier name and a delivery phrase into a shipping method label.
+     *
+     * Every service level goes through here so the separator is defined once
+     * and the options read consistently at the checkout.
+     *
+     * @param string $baseLabel
+     * @param string $suffix
+     * @return string
+     */
+    protected function buildRateLabel($baseLabel, $suffix)
+    {
+        $suffix = trim((string) $suffix);
+
+        if ($suffix === '') {
+            return $baseLabel;
+        }
+
+        return $baseLabel . ' - ' . $suffix;
+    }
+
+    /**
+     * Build the label for a time the courier has committed to, rather than an
+     * estimate - a priority timeslot, or an on demand pickup pushed forward.
+     *
+     * @param string $baseLabel
+     * @param string $when
+     * @return string
+     */
+    protected function buildDeliveryLabel($baseLabel, $when)
+    {
+        $when = trim((string) $when);
+
+        if ($when === '') {
+            return $baseLabel;
+        }
+
+        return $this->buildRateLabel($baseLabel, 'Delivery ' . $when);
+    }
+
+    /**
      * Build the shipping label with an EDD suffix for standard/express quotes.
      *
      * Priority order:
@@ -804,15 +854,16 @@ class Mamis_Shippit_Method extends WC_Shipping_Method
      *
      * @param string $baseLabel
      * @param object $quote
+     * @param string $serviceLevel
      * @return string
      */
-    protected function buildEddLabel(string $baseLabel, object $quote): string
+    protected function buildEddLabel(string $baseLabel, object $quote, $serviceLevel = ''): string
     {
         if (!empty($quote->delivery_date)) {
             $displayDate = $this->eddHandlingEnabled && $this->eddHandlingDays > 0
                 ? $this->addBusinessDays($quote->delivery_date, $this->eddHandlingDays)
                 : date('d/m/Y', strtotime($quote->delivery_date));
-            return $baseLabel . ' - Est. delivery ' . $displayDate;
+            return $this->buildRateLabel($baseLabel, 'Est. delivery ' . $displayDate);
         }
 
         if (!empty($quote->estimated_transit_time)) {
@@ -824,12 +875,21 @@ class Mamis_Shippit_Method extends WC_Shipping_Method
                 // date() returns yesterday from local midnight until the store's
                 // UTC offset, which dates the estimate a day early
                 $displayDate = $this->addBusinessDays(wp_date('Y-m-d'), $totalDays);
-                return $baseLabel . ' - Est. delivery ' . $displayDate;
+                return $this->buildRateLabel($baseLabel, 'Est. delivery ' . $displayDate);
             }
         }
 
+        // A dispatch allowance makes no sense for a courier that collects
+        // within the hour and delivers the same day
+        if ($serviceLevel === 'on_demand') {
+            return $baseLabel;
+        }
+
         if ($this->eddHandlingEnabled && $this->eddHandlingDays > 0) {
-            return $baseLabel . ' - Allow ' . $this->eddHandlingDays . ' business day' . ($this->eddHandlingDays > 1 ? 's' : '') . ' for dispatch';
+            return $this->buildRateLabel(
+                $baseLabel,
+                'Allow ' . $this->eddHandlingDays . ' business day' . ($this->eddHandlingDays > 1 ? 's' : '') . ' for dispatch'
+            );
         }
 
         return $baseLabel;

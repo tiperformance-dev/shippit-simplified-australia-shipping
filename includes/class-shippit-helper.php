@@ -471,8 +471,8 @@ class Mamis_Shippit_Helper
     /**
      * Format a pickup time for display on a shipping method label
      *
-     * Kept deliberately short - the full "Est. delivery 30/09/2026 10:00am"
-     * form wraps onto a second line at mobile checkout widths.
+     * Uses the same d/m/Y date as the other service levels so the delivery
+     * options read consistently, with the time the courier collects appended.
      *
      * @param string $pickupAt
      * @return string
@@ -485,6 +485,6 @@ class Mamis_Shippit_Helper
             return '';
         }
 
-        return wp_date('D g:ia', $timestamp);
+        return wp_date('d/m/Y', $timestamp) . ' from ' . wp_date('g:ia', $timestamp);
     }
 }
