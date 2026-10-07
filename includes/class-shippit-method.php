@@ -569,9 +569,9 @@ class Mamis_Shippit_Method extends WC_Shipping_Method
             $taxes = WC_Tax::calc_inclusive_tax($quotePrice, WC_Tax::get_shipping_tax_rates());
             $cost = $quotePrice - array_sum($taxes);
 
-            if (!empty($priorityQuote->delivery_date)) {
-                $displayDeliveryDate = date('d/m/Y', strtotime($priorityQuote->delivery_date));
-            } else {
+            $displayDeliveryDate = $this->helper->formatLabelDate($priorityQuote->delivery_date);
+
+            if ($displayDeliveryDate === '') {
                 $displayDeliveryDate = 'TBD';
             }
 
@@ -580,7 +580,8 @@ class Mamis_Shippit_Method extends WC_Shipping_Method
             $deliveryWhen = $displayDeliveryDate;
 
             if (!empty($priorityQuote->delivery_window_desc)) {
-                $deliveryWhen .= ' ' . $priorityQuote->delivery_window_desc;
+                // Shippit's own window text, passed through as it comes
+                $deliveryWhen .= ' (' . $priorityQuote->delivery_window_desc . ')';
             }
 
             $rate = array(
@@ -840,7 +841,7 @@ class Mamis_Shippit_Method extends WC_Shipping_Method
             return $baseLabel;
         }
 
-        return $this->buildRateLabel($baseLabel, 'Delivery ' . $when);
+        return $this->buildRateLabel($baseLabel, 'Del. ' . $when);
     }
 
     /**
@@ -863,7 +864,7 @@ class Mamis_Shippit_Method extends WC_Shipping_Method
             $displayDate = $this->eddHandlingEnabled && $this->eddHandlingDays > 0
                 ? $this->addBusinessDays($quote->delivery_date, $this->eddHandlingDays)
                 : date('d/m/Y', strtotime($quote->delivery_date));
-            return $this->buildRateLabel($baseLabel, 'Est. delivery ' . $displayDate);
+            return $this->buildRateLabel($baseLabel, 'Est. ' . $displayDate);
         }
 
         if (!empty($quote->estimated_transit_time)) {
@@ -875,7 +876,7 @@ class Mamis_Shippit_Method extends WC_Shipping_Method
                 // date() returns yesterday from local midnight until the store's
                 // UTC offset, which dates the estimate a day early
                 $displayDate = $this->addBusinessDays(wp_date('Y-m-d'), $totalDays);
-                return $this->buildRateLabel($baseLabel, 'Est. delivery ' . $displayDate);
+                return $this->buildRateLabel($baseLabel, 'Est. ' . $displayDate);
             }
         }
 
@@ -905,14 +906,14 @@ class Mamis_Shippit_Method extends WC_Shipping_Method
     protected function addBusinessDays(string $dateStr, int $days): string
     {
         if ($days <= 0) {
-            return date('d/m/Y', strtotime($dateStr));
+            return $this->helper->formatLabelDate($dateStr);
         }
 
         try {
             $dt = new DateTime($dateStr);
         } catch (Exception $e) {
             $this->log->error(sprintf('addBusinessDays: invalid date string "%s"', $dateStr));
-            return wp_date('d/m/Y');
+            return $this->helper->formatLabelDate(time());
         }
 
         $added = 0;
@@ -925,6 +926,6 @@ class Mamis_Shippit_Method extends WC_Shipping_Method
             }
         }
 
-        return $dt->format('d/m/Y');
+        return $this->helper->formatLabelDate($dt->getTimestamp());
     }
 }

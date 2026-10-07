@@ -469,10 +469,32 @@ class Mamis_Shippit_Helper
     }
 
     /**
+     * Format a date for display on a shipping method label
+     *
+     * Short by design - the delivery options sit in a narrow column and a full
+     * d/m/Y date wraps onto a second line at mobile widths. Defined here so
+     * every service level renders its date the same way.
+     *
+     * @param string|int $date A date string or a timestamp
+     * @return string eg. '8 Oct', or an empty string if it cannot be read
+     */
+    public function formatLabelDate($date)
+    {
+        $timestamp = is_numeric($date) ? (int) $date : strtotime($date);
+
+        if (empty($timestamp)) {
+            return '';
+        }
+
+        return wp_date('j M', $timestamp);
+    }
+
+    /**
      * Format a pickup time for display on a shipping method label
      *
-     * Uses the same d/m/Y date as the other service levels so the delivery
-     * options read consistently, with the time the courier collects appended.
+     * Matches the casing Shippit uses for its own priority delivery windows
+     * (10AM-1PM) so the times read consistently down the list. The minutes are
+     * only shown when there are any, as a pickup usually lands on the hour.
      *
      * @param string $pickupAt
      * @return string
@@ -481,10 +503,12 @@ class Mamis_Shippit_Helper
     {
         $timestamp = strtotime($pickupAt);
 
-        if ($timestamp === false) {
+        if (empty($timestamp)) {
             return '';
         }
 
-        return wp_date('d/m/Y', $timestamp) . ' from ' . wp_date('g:ia', $timestamp);
+        $timeFormat = wp_date('i', $timestamp) === '00' ? 'gA' : 'g:iA';
+
+        return $this->formatLabelDate($timestamp) . ' from ' . wp_date($timeFormat, $timestamp);
     }
 }
