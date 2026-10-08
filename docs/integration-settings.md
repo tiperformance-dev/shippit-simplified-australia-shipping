@@ -61,3 +61,19 @@ Enables merchants to configure the fulfillment sync behaviour offered by the Shi
 | --- | --- | --- |
 | `Enabled` | `Yes` | When enabled, orders that have been “booked” within Shippit will be communicated via a webhook with the WooCommerce store.<br><br> The Shippit Plugin will update the order details with a confirmation of the tracking details, items shipped, and a transition of the order to the “completed” status once all items have been booked for delivery.
 | `Tracking Reference` | `Shippit Tracking Reference` | The Tracking Reference Number to be captured when updating the order with shipment confirmation.<br><br>Available options include…<ul><li>Shippit Tracking Reference (default)<ul><li>When selected, the shippit tracking reference is captured and stored with the shipment confirmation.</li></ul></li><li>Courier Tracking Reference<ul><li>When selected, the shippit + courier tracking references are captured on stored with the shipment confirmation.</li></ul></li></ul> |
+
+## Uber Direct (On Demand)
+
+Enables merchants to accept Uber Direct (On Demand) bookings placed outside their operating hours.
+
+Uber Direct ignores the order date and schedules against a pickup time instead. When that pickup time is left for Shippit to calculate, it is based on the current time plus the handling time — so an order placed near or after closing falls outside the operating window and the quote fails with "merchant closed for pickup".
+
+When this setting is enabled, the plugin calculates the pickup time itself: the next open day's opening time plus the handling time. Both are read from your Shippit merchant account each time these settings are saved, so they do not need to be entered twice. The same cutoff (closing time less the handling time) is also used to decide when Priority orders roll forward to the next open day.
+
+Orders placed while the store is open and with enough time remaining to prepare them are unaffected — Shippit continues to schedule those itself.
+
+| Setting | Default Value | Description |
+| --- | --- | --- |
+| `Allow After Hours Bookings` | `No` | Determines whether on demand orders placed outside your operating hours are booked for the next open day.<br>- When set to **`Yes`**, the pickup time is calculated from your Shippit operating hours and handling time, and the delivery method shows when the booking will occur (ie: `Uber Direct (Mon 10:00am)`).<br>- When set to **`No`**, the pickup time is left for Shippit to calculate, and orders placed outside your operating hours may not be quoted.<br>Your operating hours and handling time are retrieved from Shippit when these settings are saved. If they cannot be retrieved, the previous behaviour applies until the next successful save. |
+
+> Note: _Shippit records operating hours as a weekly pattern with no allowance for public holidays. An on demand order placed the evening before a public holiday will be quoted for that day, and Shippit will decline it — the Uber Direct option is then not offered._

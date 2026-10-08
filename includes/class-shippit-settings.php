@@ -94,7 +94,88 @@ class Mamis_Shippit_Settings
 
         woocommerce_update_options(self::getFields());
 
+        $this->syncMerchantSchedule();
+
         $this->registerMerchant();
+    }
+
+    /**
+     * Retrieve and store the operating hours and handling time from Shippit
+     *
+     * Runs on save so the merchant controls when it happens. A failure never
+     * blocks the save - the feature falls back to its previous behaviour when
+     * the schedule is unavailable.
+     *
+     * @return bool
+     */
+    protected function syncMerchantSchedule()
+    {
+        if (get_option('wc_settings_shippit_ondemand_afterhours_enabled', 'no') !== 'yes') {
+            return false;
+        }
+
+        $apiService = new Mamis_Shippit_Api();
+
+        try {
+            $merchant = $apiService->getMerchant();
+            $operatingHours = $apiService->getOperatingHours();
+
+            if (
+                !$merchant
+                || !property_exists($merchant, 'response')
+                || !isset($merchant->response->preparation_time)
+            ) {
+                $this->log->error('Merchant schedule sync failed - no preparation time returned');
+
+                add_action('admin_notices', array($this, 'noticeMerchantScheduleFailed'));
+
+                return false;
+            }
+
+            if (
+                !$operatingHours
+                || !property_exists($operatingHours, 'working_days')
+                || empty($operatingHours->working_days)
+            ) {
+                $this->log->error('Merchant schedule sync failed - no operating hours returned');
+
+                add_action('admin_notices', array($this, 'noticeMerchantScheduleFailed'));
+
+                return false;
+            }
+
+            update_option(
+                'wc_settings_shippit_merchant_preparation_time',
+                (int) $merchant->response->preparation_time
+            );
+            update_option(
+                'wc_settings_shippit_merchant_operating_hours',
+                json_decode(json_encode($operatingHours->working_days), true)
+            );
+            update_option(
+                'wc_settings_shippit_merchant_schedule_synced_at',
+                current_time('mysql')
+            );
+
+            $this->log->info(
+                'Merchant schedule sync successful',
+                [
+                    'preparation_time' => $merchant->response->preparation_time,
+                    'working_days' => $operatingHours->working_days,
+                ]
+            );
+
+            add_action('admin_notices', array($this, 'noticeMerchantScheduleSynced'));
+
+            return true;
+        }
+        catch (Exception $e) {
+            $this->log->exception($e);
+
+            add_action('admin_notices', array($this, 'noticeMerchantScheduleFailed'));
+        }
+
+        return false;
     }
 
     /**
@@ -507,7 +588,11 @@ class Mamis_Shippit_Settings
                 'id'       => 'wc_settings_shippit_edd_handling_enabled',
                 'title'    => __('Enable Handling Time on EDD', 'woocommerce-shippit'),
                 'class'    => 'wc-enhanced-select',
-                'default'  => 'yes',
+                // Matches the get_option fallback in Mamis_Shippit_Method::init.
+                // A field default only pre-fills the form, so a store that has
+                // never saved this page behaves as the fallback - the two must
+                // agree or the form misreports the behaviour.
+                'default'  => 'no',
                 'type'     => 'select',
                 'desc'     => 'Add business days to Shippit delivery dates to account for packing/handling time before dispatch.',
                 'desc_tip' => true,
@@ -530,6 +615,35 @@ class Mamis_Shippit_Settings
 
             'edd_section_end' => array(
                 'id'   => 'shippit-settings-edd-end',
+                'type' => 'sectionend',
+            ),
+
+            'ondemand_section_title' => array(
+                'id'       => 'shippit-settings-ondemand',
+                'name'     => __('Uber Direct (On Demand)', 'woocommerce-shippit'),
+                'type'     => 'title',
+                'desc'     => 'Configure how on demand bookings are handled outside your operating hours.',
+                'desc_tip' => true,
+            ),
+
+            'ondemand_afterhours_enabled' => array(
+                'id'       => 'wc_settings_shippit_ondemand_afterhours_enabled',
+                'title'    => __('Allow After Hours Bookings', 'woocommerce-shippit'),
+                'class'    => 'wc-enhanced-select',
+                'default'  => 'no',
+                'type'     => 'select',
+                'desc'     => 'Book on demand orders placed outside your operating hours for the next open day, '
+                    . 'rather than letting them fail. Your operating hours and handling time are read from '
+                    . 'Shippit when these settings are saved.',
+                'desc_tip' => true,
+                'options'  => array(
+                    'no'  => __('No', 'woocommerce-shippit'),
+                    'yes' => __('Yes', 'woocommerce-shippit'),
+                ),
+            ),
+
+            'ondemand_section_end' => array(
+                'id'   => 'shippit-settings-ondemand-end',
                 'type' => 'sectionend',
             ),
         );
@@ -779,6 +893,32 @@ class Mamis_Shippit_Settings
     {
         echo '<div class="notice notice-error">'
             . '<p>The Shippit API Key / Environment provided could not be verified. Please check the Shippit API key and Enviroment values and try again.</p>'
+            . '</div>';
+    }
+
+    /**
+     * Show a notice stating the merchant schedule was retrieved
+     *
+     * @return void
+     */
+    public function noticeMerchantScheduleSynced()
+    {
+        echo '<div class="notice notice-success">'
+            . '<p>Your Shippit operating hours and handling time have been retrieved and stored.</p>'
+            . '</div>';
+    }
+
+    /**
+     * Show a notice stating the merchant schedule could not be retrieved
+     *
+     * @return void
+     */
+    public function noticeMerchantScheduleFailed()
+    {
+        echo '<div class="notice notice-warning">'
+            . '<p>Your Shippit operating hours and handling time could not be retrieved. '
+            . 'After hours on demand bookings will be left for Shippit to schedule '
+            . 'until the next successful sync.</p>'
             . '</div>';
     }
 

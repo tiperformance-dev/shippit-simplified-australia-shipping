@@ -208,7 +208,7 @@ class Mamis_Shippit_Helper
             'Tnt' => 'TNT',
 
             //On Demand
-            'UberOndemand' => 'Uber On Demand'
+            'UberOndemand' => 'Uber Direct'
         ];
         
         $friendlyName = $courierFriendlyNames[$courier_type] ?? ucwords($service_level);
@@ -244,5 +244,271 @@ class Mamis_Shippit_Helper
         }
 
         return $shippingMethodId;
+    }
+
+    /**
+     * Retrieve the merchant operating hours, keyed by lowercase day name
+     *
+     * Synced from Shippit when the settings page is saved.
+     *
+     * @return array
+     */
+    protected function getOperatingHoursByDay()
+    {
+        $workingDays = get_option('wc_settings_shippit_merchant_operating_hours', array());
+
+        if (!is_array($workingDays) || empty($workingDays)) {
+            return array();
+        }
+
+        $hoursByDay = array();
+
+        foreach ($workingDays as $workingDay) {
+            // Entries may be arrays or objects depending on how they were stored
+            $workingDay = (array) $workingDay;
+
+            if (empty($workingDay['day'])) {
+                continue;
+            }
+
+            $hoursByDay[strtolower($workingDay['day'])] = $workingDay;
+        }
+
+        return $hoursByDay;
+    }
+
+    /**
+     * Retrieve the configured preparation time, in minutes
+     *
+     * @return int
+     */
+    protected function getPreparationMinutes()
+    {
+        return (int) get_option('wc_settings_shippit_merchant_preparation_time', 0);
+    }
+
+    /**
+     * Build a DateTime for a HH:MM time on the given day, in the store timezone
+     *
+     * @param DateTime $day
+     * @param string $time
+     * @return DateTime|null
+     */
+    protected function getTimeOnDay(DateTime $day, $time)
+    {
+        if (empty($time) || strpos($time, ':') === false) {
+            return null;
+        }
+
+        return new DateTime($day->format('Y-m-d') . ' ' . $time, wp_timezone());
+    }
+
+    /**
+     * Determine if the store can no longer dispatch today - ie. the order
+     * could not be prepared before closing time, or the store is shut today
+     *
+     * An order placed before opening is NOT past the cutoff, as the store can
+     * still dispatch it once it opens.
+     *
+     * @return bool|null Null when the operating hours have not been synced
+     */
+    public function isPastPickupCutoff()
+    {
+        $hoursByDay = $this->getOperatingHoursByDay();
+
+        if (empty($hoursByDay)) {
+            return null;
+        }
+
+        $now = new DateTime('now', wp_timezone());
+        $dayName = strtolower($now->format('l'));
+
+        if (empty($hoursByDay[$dayName]) || empty($hoursByDay[$dayName]['is_open'])) {
+            return true;
+        }
+
+        $close = $this->getTimeOnDay($now, $hoursByDay[$dayName]['end_of_workday']);
+
+        if ($close === null) {
+            return null;
+        }
+
+        $candidate = clone $now;
+        $candidate->modify(sprintf('+%d minutes', $this->getPreparationMinutes()));
+
+        return ($candidate > $close);
+    }
+
+    /**
+     * Determine if an ASAP pickup can be booked right now - ie. the store is
+     * open and the order can still be prepared before closing
+     *
+     * @return bool
+     */
+    protected function canPickupAsap()
+    {
+        $hoursByDay = $this->getOperatingHoursByDay();
+        $now = new DateTime('now', wp_timezone());
+        $dayName = strtolower($now->format('l'));
+
+        if (empty($hoursByDay[$dayName]) || empty($hoursByDay[$dayName]['is_open'])) {
+            return false;
+        }
+
+        $open = $this->getTimeOnDay($now, $hoursByDay[$dayName]['beginning_of_workday']);
+        $close = $this->getTimeOnDay($now, $hoursByDay[$dayName]['end_of_workday']);
+
+        if ($open === null || $close === null) {
+            return false;
+        }
+
+        $candidate = clone $now;
+        $candidate->modify(sprintf('+%d minutes', $this->getPreparationMinutes()));
+
+        return ($candidate >= $open && $candidate <= $close);
+    }
+
+    /**
+     * Retrieve the next day the store is open, today included
+     *
+     * @param DateTime $from
+     * @return DateTime|null
+     */
+    public function getNextOpenDay(DateTime $from)
+    {
+        $hoursByDay = $this->getOperatingHoursByDay();
+
+        if (empty($hoursByDay)) {
+            return null;
+        }
+
+        for ($dayOffset = 0; $dayOffset <= 7; $dayOffset++) {
+            $day = clone $from;
+
+            if ($dayOffset > 0) {
+                $day->modify(sprintf('+%d days', $dayOffset));
+            }
+
+            $dayName = strtolower($day->format('l'));
+
+            if (!empty($hoursByDay[$dayName]['is_open'])) {
+                return $day;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Calculate the pickup time to send for an on demand order
+     *
+     * Returns null when the store is open and there is still time to prepare
+     * the order before closing - Shippit then books an ASAP pickup itself,
+     * which is the behaviour prior to this feature. Also returns null when the
+     * operating hours are unavailable, so the feature fails open.
+     *
+     * @return string|null ISO 8601, eg. 2026-09-29T10:00:00+10:00
+     */
+    public function getOnDemandPickupAt()
+    {
+        $hoursByDay = $this->getOperatingHoursByDay();
+
+        if (empty($hoursByDay)) {
+            return null;
+        }
+
+        // Open, and the order can still be prepared before closing - let
+        // Shippit calculate the pickup as it does today
+        if ($this->canPickupAsap()) {
+            return null;
+        }
+
+        $preparationMinutes = $this->getPreparationMinutes();
+        $now = new DateTime('now', wp_timezone());
+
+        $candidate = clone $now;
+        $candidate->modify(sprintf('+%d minutes', $preparationMinutes));
+
+        // Use the first open day whose opening time plus preparation still
+        // falls within that day's operating hours. Today is included so that
+        // an order placed before opening is picked up the same morning.
+        for ($dayOffset = 0; $dayOffset <= 7; $dayOffset++) {
+            $day = clone $now;
+
+            if ($dayOffset > 0) {
+                $day->modify(sprintf('+%d days', $dayOffset));
+            }
+
+            $dayName = strtolower($day->format('l'));
+
+            if (empty($hoursByDay[$dayName]) || empty($hoursByDay[$dayName]['is_open'])) {
+                continue;
+            }
+
+            $open = $this->getTimeOnDay($day, $hoursByDay[$dayName]['beginning_of_workday']);
+            $close = $this->getTimeOnDay($day, $hoursByDay[$dayName]['end_of_workday']);
+
+            if ($open === null || $close === null) {
+                continue;
+            }
+
+            $pickup = clone $open;
+            $pickup->modify(sprintf('+%d minutes', $preparationMinutes));
+
+            // Today's opening slot has already been and gone
+            if ($dayOffset === 0 && $pickup < $candidate) {
+                continue;
+            }
+
+            if ($pickup <= $close) {
+                return $pickup->format('c');
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Format a date for display on a shipping method label
+     *
+     * Short by design - the delivery options sit in a narrow column and a full
+     * d/m/Y date wraps onto a second line at mobile widths. Defined here so
+     * every service level renders its date the same way.
+     *
+     * @param string|int $date A date string or a timestamp
+     * @return string eg. '8 Oct', or an empty string if it cannot be read
+     */
+    public function formatLabelDate($date)
+    {
+        $timestamp = is_numeric($date) ? (int) $date : strtotime($date);
+
+        if (empty($timestamp)) {
+            return '';
+        }
+
+        return wp_date('j M', $timestamp);
+    }
+
+    /**
+     * Format a pickup time for display on a shipping method label
+     *
+     * Matches the casing Shippit uses for its own priority delivery windows
+     * (10AM-1PM) so the times read consistently down the list. The minutes are
+     * only shown when there are any, as a pickup usually lands on the hour.
+     *
+     * @param string $pickupAt
+     * @return string
+     */
+    public function formatPickupAtLabel($pickupAt)
+    {
+        $timestamp = strtotime($pickupAt);
+
+        if (empty($timestamp)) {
+            return '';
+        }
+
+        $timeFormat = wp_date('i', $timestamp) === '00' ? 'gA' : 'g:iA';
+
+        return $this->formatLabelDate($timestamp) . ' from ' . wp_date($timeFormat, $timestamp);
     }
 }

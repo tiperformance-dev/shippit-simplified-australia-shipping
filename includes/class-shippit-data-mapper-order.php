@@ -32,6 +32,7 @@ class Mamis_Shippit_Data_Mapper_Order extends Mamis_Shippit_Object
             ->mapCourierAllocation()
             ->mapDeliveryDate()
             ->mapDeliveryWindow()
+            ->mapPickupAt()
             ->mapDeliveryCompany()
             ->mapDeliveryAddress()
             ->mapDeliverySuburb()
@@ -172,6 +173,53 @@ class Mamis_Shippit_Data_Mapper_Order extends Mamis_Shippit_Object
         }
 
         return $this->setDeliveryWindow($deliveryWindow);
+    }
+
+    public function mapPickupAt()
+    {
+        if (get_option('wc_settings_shippit_ondemand_afterhours_enabled', 'no') !== 'yes') {
+            return $this;
+        }
+
+        if (!$this->helper->isShippitLiveQuote($this->order)) {
+            return $this;
+        }
+
+        $serviceLevel = $this->helper->getShippitLiveQuoteMetaAttributeValue($this->order, 'service_level');
+
+        if ($serviceLevel !== 'on_demand') {
+            return $this;
+        }
+
+        $quotedPickupAt = $this->helper->getShippitLiveQuoteMetaAttributeValue($this->order, '_pickup_at');
+
+        // An order can be sent long after it was quoted - manually, or by the
+        // hourly retry - so the quoted time is only used while it is still
+        // ahead of us. Otherwise it is recalculated from the operating hours.
+        if (!empty($quotedPickupAt) && strtotime($quotedPickupAt) > time()) {
+            $pickupAt = $quotedPickupAt;
+        }
+        else {
+            $pickupAt = $this->helper->getOnDemandPickupAt();
+
+            if (!empty($quotedPickupAt)) {
+                // Logged at error level so it is recorded with debug mode off
+                $this->log->error(
+                    'The quoted pickup time had passed and was recalculated before booking',
+                    [
+                        'order_id' => $this->order->get_id(),
+                        'quoted_pickup_at' => $quotedPickupAt,
+                        'pickup_at' => $pickupAt,
+                    ]
+                );
+            }
+        }
+
+        if (empty($pickupAt)) {
+            return $this;
+        }
+
+        return $this->setPickupAt($pickupAt);
     }
 
     public function mapDeliveryCompany()
