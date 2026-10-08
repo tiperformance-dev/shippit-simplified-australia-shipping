@@ -237,8 +237,16 @@ class Mamis_Shippit_Method extends WC_Shipping_Method
         $isExpressAvailable = in_array('express', $this->allowed_methods);
         $isStandardAvailable = in_array('standard', $this->allowed_methods);
 
-        if ($isPriorityAvailable) {
-            $isPriorityAvailable = $this->isPriorityAvailableByStock($quoteContents);
+        // On demand has no allowed_methods option of its own - it rides on the Express
+        // checkbox, so it needs a flag of its own to be gated without hiding Express.
+        $isOnDemandAvailable = $isExpressAvailable;
+
+        // One stock lookup serves both gated service levels.
+        if ($isPriorityAvailable || $isOnDemandAvailable) {
+            $hasStock = $this->isAvailableByStock($quoteContents);
+
+            $isPriorityAvailable = $isPriorityAvailable && $hasStock;
+            $isOnDemandAvailable = $isOnDemandAvailable && $hasStock;
         }
 
         $dropoffSuburb = $quoteDestination['city'];
@@ -359,7 +367,7 @@ class Mamis_Shippit_Method extends WC_Shipping_Method
 
                             break;
                         case 'on_demand':
-                            if ($isExpressAvailable) {
+                            if ($isOnDemandAvailable) {
                                 $this->addExpressQuote($shippingQuote, $onDemandPickupAt);
                             }
 
@@ -734,13 +742,13 @@ class Mamis_Shippit_Method extends WC_Shipping_Method
     }
 
     /**
-     * Check whether Priority shipping should be offered based on QB Stock on Hand.
+     * Check whether Priority and on demand shipping should be offered based on QB Stock on Hand.
      * Returns false if any cart item's QB SOH is below the quantity in the cart.
      *
      * @param array $quoteContents
      * @return bool
      */
-    protected function isPriorityAvailableByStock(array $quoteContents): bool
+    protected function isAvailableByStock(array $quoteContents): bool
     {
         global $wpdb;
 
@@ -758,7 +766,7 @@ class Mamis_Shippit_Method extends WC_Shipping_Method
             $sku = $product->get_sku();
 
             if (empty($sku)) {
-                $this->log->info(sprintf('Priority stock check: product ID %d has no SKU, skipping', $productId));
+                $this->log->info(sprintf('Stock check: product ID %d has no SKU, skipping', $productId));
                 continue;
             }
 
@@ -795,7 +803,12 @@ class Mamis_Shippit_Method extends WC_Shipping_Method
 
             if ($soh === null || $soh < $cartQty) {
                 $this->log->info(
-                    sprintf('Priority shipping hidden: QB SOH for SKU %s is %s, cart qty is %d', $sku, $soh ?? 'not found', $cartQty)
+                    sprintf(
+                        'Priority and on demand shipping hidden: QB SOH for SKU %s is %s, cart qty is %d',
+                        $sku,
+                        $soh ?? 'not found',
+                        $cartQty
+                    )
                 );
                 return false;
             }
