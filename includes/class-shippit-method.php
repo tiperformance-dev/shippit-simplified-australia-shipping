@@ -87,6 +87,13 @@ class Mamis_Shippit_Method extends WC_Shipping_Method
     protected $onDemandAfterHoursEnabled;
 
     /**
+     * Set when a quote was skipped on a request that still caches its rates
+     *
+     * @var bool
+     */
+    protected static $quoteSkipped = false;
+
+    /**
      * Constructor.
      */
     public function __construct(int $instance_id = 0)
@@ -182,6 +189,8 @@ class Mamis_Shippit_Method extends WC_Shipping_Method
         );
 
         if ( ( is_admin() && ! $is_shipping_ajax ) || ( ! is_admin() && strpos($_SERVER["REQUEST_URI"], 'product') !== false ) ) {
+            self::flagSkippedQuote();
+
             return;
         }
 
@@ -815,6 +824,47 @@ class Mamis_Shippit_Method extends WC_Shipping_Method
         }
 
         return true;
+    }
+
+    /**
+     * Note that a quote was skipped, so the rates cached for this request can
+     * be dropped once WooCommerce has written them.
+     *
+     * @return void
+     */
+    protected static function flagSkippedQuote()
+    {
+        if (self::$quoteSkipped) {
+            return;
+        }
+
+        self::$quoteSkipped = true;
+
+        // On shutdown, so it runs after every shipping calculation this request
+        // makes - a product page can calculate more than once - and before the
+        // session is saved, which WooCommerce hooks to shutdown at priority 20
+        add_action('shutdown', array(__CLASS__, 'clearCachedShippingRates'), 5);
+    }
+
+    /**
+     * Drop WooCommerce's cached shipping rates for this session.
+     *
+     * WooCommerce caches whatever the shipping methods returned against a hash
+     * of the package, so a request that skipped the quote would leave the cart
+     * offering no Shippit rates until the package changed again. Clearing the
+     * cache makes the next request calculate them properly.
+     *
+     * @return void
+     */
+    public static function clearCachedShippingRates()
+    {
+        if (!function_exists('WC') || is_null(WC()->session) || is_null(WC()->cart)) {
+            return;
+        }
+
+        foreach (array_keys(WC()->cart->get_shipping_packages()) as $packageKey) {
+            unset(WC()->session->{'shipping_for_package_' . $packageKey});
+        }
     }
 
     /**
