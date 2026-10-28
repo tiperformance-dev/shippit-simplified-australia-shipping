@@ -386,8 +386,7 @@ class Mamis_Shippit_Shipment
      * 2026-10-27 Trello #133 - Save the courier's tracking number where the Shipping Details
      * plugin keeps it (_order_trackno / _order_trackurl), so staff no longer type it in.
      * Saved with the order by updateOrder(), before any Completed email.
-     * 2026-10-28 Uber and Yello get Shippit's tracking number instead: their courier job id
-     * can't be tracked by the customer.
+     * A courier with no matching carrier is still saved, as "No Tracking".
      *
      * @param  WC_Order $order       The woocommerce order
      * @param  object   $requestData The webhook request data
@@ -395,22 +394,26 @@ class Mamis_Shippit_Shipment
      */
     protected function updateShippingDetailsTracking($order, $requestData)
     {
+        $trackingNumber = str_replace(' ', '', (string) ($requestData->courier_job_id ?? ''));
         $courierName = (string) ($requestData->courier_name ?? '');
         $carrier = $this->getShippingDetailsCarrier($courierName);
-        $trackingField = in_array($carrier, ['UBER', 'YELLO'], true) ? 'tracking_number' : 'courier_job_id';
-        $trackingNumber = str_replace(' ', '', (string) ($requestData->$trackingField ?? ''));
 
-        if ($trackingNumber === '' || $carrier === '') {
+        if ($trackingNumber === '') {
             $this->log->info(
-                'Courier tracking not saved to Shipping Details',
-                [
-                    'order_id' => $order->get_id(),
-                    'courier_name' => $courierName,
-                    $trackingField => $trackingNumber,
-                ]
+                'Courier tracking not saved to Shipping Details, no courier_job_id',
+                ['order_id' => $order->get_id(), 'courier_name' => $courierName]
             );
 
             return;
+        }
+
+        if ($carrier === '') {
+            $carrier = 'NOTRACK';
+
+            $this->log->info(
+                'Courier not matched to a Shipping Details carrier, saved as No Tracking',
+                ['order_id' => $order->get_id(), 'courier_name' => $courierName, 'courier_job_id' => $trackingNumber]
+            );
         }
 
         // Shipping Details has five slots: _order_trackno, then _order_trackno1 to 4.
@@ -432,7 +435,7 @@ class Mamis_Shippit_Shipment
         if ($freeSlot === null) {
             $this->log->info(
                 'Courier tracking not saved to Shipping Details, all slots in use',
-                ['order_id' => $order->get_id(), $trackingField => $trackingNumber]
+                ['order_id' => $order->get_id(), 'courier_job_id' => $trackingNumber]
             );
 
             return;
