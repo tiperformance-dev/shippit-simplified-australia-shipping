@@ -378,6 +378,111 @@ class Mamis_Shippit_Shipment
 
         // Update the order shipment metadata
         $order->update_meta_data('_mamis_shippit_shipment', $shipments);
+
+        $this->updateShippingDetailsTracking($order, $requestData);
+    }
+
+    /**
+     * 2026-10-27 Trello #133 - Save the courier's tracking number where the Shipping Details
+     * plugin keeps it (_order_trackno / _order_trackurl), so staff no longer type it in.
+     * Saved with the order by updateOrder(), before any Completed email.
+     * A courier with no matching carrier is still saved, as "No Tracking".
+     *
+     * @param  WC_Order $order       The woocommerce order
+     * @param  object   $requestData The webhook request data
+     * @return void
+     */
+    protected function updateShippingDetailsTracking($order, $requestData)
+    {
+        $trackingNumber = str_replace(' ', '', (string) ($requestData->courier_job_id ?? ''));
+        $courierName = (string) ($requestData->courier_name ?? '');
+        $carrier = $this->getShippingDetailsCarrier($courierName);
+
+        if ($trackingNumber === '') {
+            $this->log->info(
+                'Courier tracking not saved to Shipping Details, no courier_job_id',
+                ['order_id' => $order->get_id(), 'courier_name' => $courierName]
+            );
+
+            return;
+        }
+
+        if ($carrier === '') {
+            $carrier = 'NOTRACK';
+
+            $this->log->info(
+                'Courier not matched to a Shipping Details carrier, saved as No Tracking',
+                ['order_id' => $order->get_id(), 'courier_name' => $courierName, 'courier_job_id' => $trackingNumber]
+            );
+        }
+
+        // Shipping Details has five slots: _order_trackno, then _order_trackno1 to 4.
+        $freeSlot = null;
+
+        foreach (['', '1', '2', '3', '4'] as $slot) {
+            $existing = (string) $order->get_meta('_order_trackno' . $slot, true);
+
+            // Already saved, e.g. a repeated webhook.
+            if ($existing === $trackingNumber) {
+                return;
+            }
+
+            if ($existing === '' && $freeSlot === null) {
+                $freeSlot = $slot;
+            }
+        }
+
+        if ($freeSlot === null) {
+            $this->log->info(
+                'Courier tracking not saved to Shipping Details, all slots in use',
+                ['order_id' => $order->get_id(), 'courier_job_id' => $trackingNumber]
+            );
+
+            return;
+        }
+
+        $order->update_meta_data('_order_trackno' . $freeSlot, $trackingNumber);
+        $order->update_meta_data('_order_trackurl' . $freeSlot, $carrier);
+    }
+
+    /**
+     * The Shipping Details carrier code for a Shippit courier name, or '' when there is no
+     * match or the carrier is not enabled in Settings > Shipping Details (the order screen
+     * would reset a disabled carrier to "No Tracking" on its next save).
+     *
+     * @param  string $courierName e.g. "Aramex Au Nz", "Couriers Please", "Eparcel", "Uber Direct"
+     * @return string
+     */
+    protected function getShippingDetailsCarrier($courierName)
+    {
+        $name = preg_replace('/[^a-z]/', '', strtolower($courierName));
+        $carrier = '';
+
+        if (strpos($name, 'startrack') !== false) {
+            $carrier = 'STARTRACK';
+        } elseif (strpos($name, 'dhl') !== false) {
+            $carrier = 'DHL';
+        } elseif (preg_match('/eparcel|australiapost|auspost|expresspost|standardpost|internationalpost/', $name)) {
+            $carrier = (strpos($name, 'international') !== false) ? 'AUSTRALIAPOSTINTL' : 'AUSTRALIAPOST';
+        } elseif (preg_match('/aramex|fastway/', $name)) {
+            $carrier = 'ARAMEX';
+        } elseif (strpos($name, 'couriersplease') !== false) {
+            $carrier = 'COURIERSPLEASE';
+        } elseif (strpos($name, 'allied') !== false) {
+            $carrier = 'ALLIED';
+        } elseif (strpos($name, 'tnt') !== false) {
+            $carrier = 'TNTEXPRESS';
+        } elseif (strpos($name, 'bonds') !== false) {
+            $carrier = 'BONDSCOURIERS';
+        } elseif (strpos($name, 'uber') !== false) {
+            $carrier = 'UBER';
+        } elseif (strpos($name, 'yello') !== false) {
+            $carrier = 'YELLO';
+        }
+
+        $enabled = (array) get_option('woo_ship_options', []);
+
+        return ($carrier !== '' && !empty($enabled[$carrier])) ? $carrier : '';
     }
 
     /**
