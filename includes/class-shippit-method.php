@@ -185,6 +185,7 @@ class Mamis_Shippit_Method extends WC_Shipping_Method
             doing_action('woocommerce_checkout_update_order_review') ||
             strpos($_REQUEST['action'] ?? '', 'shipping') !== false ||
             strpos($_REQUEST['action'] ?? '', 'apple_pay') !== false ||
+            strpos($_REQUEST['action'] ?? '', 'google_pay') !== false ||
             strpos($_REQUEST['action'] ?? '', 'update_order_review') !== false
         );
 
