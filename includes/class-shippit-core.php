@@ -28,6 +28,7 @@ class Mamis_Shippit_Core
     const NOTICE_SHIPMENT_STATUS = 'Ignoring the order status update, as we only respond to ready_for_pickup state';
     const ERROR_SHIPMENT_FAILED = 'The shipment record was not able to be created at this time, please try again.';
     const SUCCESS_SHIPMENT_CREATED = 'The shipment record was created successfully.';
+    const BLOCK_ATL_FIELD = 'shippit/authority-to-leave';
 
     /**
      * Instace of Mamis Shippit
@@ -107,6 +108,11 @@ class Mamis_Shippit_Core
 
         // Update the order meta with authority to leave value
         add_action('woocommerce_checkout_update_order_meta', array($this, 'update_authority_to_leave_order_meta'));
+
+        // Block checkout ignores the two hooks above: same field and meta through the block APIs.
+        $this->register_block_authority_to_leave();
+        add_action('woocommerce_store_api_checkout_update_order_from_request', array($this, 'update_block_authority_to_leave_order_meta'), 10, 2);
+        add_filter('woocommerce_admin_shipping_fields', array($this, 'hide_block_authority_to_leave_admin_field'), 11);
 
         // Display the authority to leave on the orders edit page
         add_action('woocommerce_admin_order_data_after_shipping_address', 'authority_to_leave_display_admin_order_meta', 10, 1);
@@ -389,6 +395,47 @@ class Mamis_Shippit_Core
         $checkout->get_value( 'authority_to_leave' ));
 
         echo '</div>';
+    }
+
+    public function register_block_authority_to_leave()
+    {
+        if (get_option('wc_settings_shippit_atl_enabled') != 'yes' || !function_exists('woocommerce_register_additional_checkout_field')) {
+            return;
+        }
+
+        woocommerce_register_additional_checkout_field(array(
+            'id' => self::BLOCK_ATL_FIELD,
+            'label' => __('Authority to leave'),
+            'location' => 'order',
+            'type' => 'select',
+            // Shows "No" by default like the classic select; empty is saved as No.
+            'placeholder' => 'No',
+            'options' => array(
+                array('value' => 'Yes', 'label' => 'Yes'),
+            ),
+            'show_in_order_confirmation' => false,
+        ));
+    }
+
+    // Copy the block field into the meta that the Shippit order mapper and admin display read.
+    public function update_block_authority_to_leave_order_meta($order, $request)
+    {
+        if (get_option('wc_settings_shippit_atl_enabled') != 'yes') {
+            return;
+        }
+
+        $fields = (array) $request->get_param('additional_fields');
+        $value = isset($fields[self::BLOCK_ATL_FIELD]) && $fields[self::BLOCK_ATL_FIELD] === 'Yes' ? 'Yes' : 'No';
+
+        $order->update_meta_data('authority_to_leave', $value);
+    }
+
+    // The admin order screen already shows the authority_to_leave meta.
+    public function hide_block_authority_to_leave_admin_field($fields)
+    {
+        unset($fields[self::BLOCK_ATL_FIELD]);
+
+        return $fields;
     }
 
     public function update_authority_to_leave_order_meta($order_id)
