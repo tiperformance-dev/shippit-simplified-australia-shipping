@@ -15,8 +15,10 @@ class Mamis_Shippit_Shipment
     const ERROR_API_KEY_MISMATCH = 'The API Key provided does not match the configured API Key';
     const ERROR_BAD_REQUEST = 'An invalid request was recieved';
     const ERROR_ORDER_MISSING = 'The order requested was not found or has a status that is not available for shipping';
-    const NOTICE_SHIPMENT_STATUS = 'Ignoring the order status update, as we only respond to ready_for_pickup state';
+    const NOTICE_SHIPMENT_STATUS = 'Ignoring the order status update, as we only respond to ready_for_pickup and despatch_in_progress states';
     const SUCCESS_SHIPMENT_CREATED = 'The shipment record was created successfully.';
+    const SUCCESS_TRACKING_SAVED = 'The courier tracking number was saved.';
+    const NOTICE_TRACKING_UNCHANGED = 'No new courier tracking number to save.';
     const SUCCESS_SHIPMENT_SKIPPED = 'Ignoring the webhook request — fulfillment sync is turned off.';
 
     protected $log;
@@ -53,6 +55,12 @@ class Mamis_Shippit_Shipment
 
         // Ensure we have a valid order object
         $this->checkOrder($order);
+
+        // 2026-11-16 Trello #133 - Confirm (Ready to Ship) only saves the connote.
+        // The shipment itself is still recorded at ready_for_pickup (Book).
+        if ($this->getRequestCurrentState($requestData) == 'despatch_in_progress') {
+            $this->saveConfirmTracking($order, $requestData);
+        }
 
         // Update the order with the shipment details
         $this->updateOrder($order, $requestData);
@@ -383,6 +391,32 @@ class Mamis_Shippit_Shipment
     }
 
     /**
+     * 2026-11-16 Trello #133 - Save the connote from the despatch_in_progress (Confirm) webhook,
+     * without marking items as shipped. Ends the request.
+     *
+     * @param  WC_Order $order       The woocommerce order
+     * @param  object   $requestData The webhook request data
+     * @return void
+     */
+    protected function saveConfirmTracking($order, $requestData)
+    {
+        if (!$this->updateShippingDetailsTracking($order, $requestData)) {
+            wp_send_json_success(array('message' => self::NOTICE_TRACKING_UNCHANGED));
+        }
+
+        $order->save_meta_data();
+        $order->add_order_note(
+            sprintf(
+                'Courier tracking number %s saved from Shippit (Ready to Ship).',
+                str_replace(' ', '', (string) $requestData->courier_job_id)
+            ),
+            0
+        );
+
+        wp_send_json_success(array('message' => self::SUCCESS_TRACKING_SAVED), 202);
+    }
+
+    /**
      * 2026-10-27 Trello #133 - Save the courier's tracking number where the Shipping Details
      * plugin keeps it (_order_trackno / _order_trackurl), so staff no longer type it in.
      * Saved with the order by updateOrder(), before any Completed email.
@@ -390,7 +424,7 @@ class Mamis_Shippit_Shipment
      *
      * @param  WC_Order $order       The woocommerce order
      * @param  object   $requestData The webhook request data
-     * @return void
+     * @return bool                  True when a new number was added
      */
     protected function updateShippingDetailsTracking($order, $requestData)
     {
@@ -404,7 +438,7 @@ class Mamis_Shippit_Shipment
                 ['order_id' => $order->get_id(), 'courier_name' => $courierName]
             );
 
-            return;
+            return false;
         }
 
         if ($carrier === '') {
@@ -424,7 +458,7 @@ class Mamis_Shippit_Shipment
 
             // Already saved, e.g. a repeated webhook.
             if ($existing === $trackingNumber) {
-                return;
+                return false;
             }
 
             if ($existing === '' && $freeSlot === null) {
@@ -438,11 +472,13 @@ class Mamis_Shippit_Shipment
                 ['order_id' => $order->get_id(), 'courier_job_id' => $trackingNumber]
             );
 
-            return;
+            return false;
         }
 
         $order->update_meta_data('_order_trackno' . $freeSlot, $trackingNumber);
         $order->update_meta_data('_order_trackurl' . $freeSlot, $carrier);
+
+        return true;
     }
 
     /**
@@ -610,7 +646,7 @@ class Mamis_Shippit_Shipment
         }
 
         // Ensure the order update notification is a state that we wish to update against
-        if (empty($currentState) || $currentState != 'ready_for_pickup') {
+        if (!in_array($currentState, ['ready_for_pickup', 'despatch_in_progress'], true)) {
             wp_send_json_success(array(
                 'message' => self::NOTICE_SHIPMENT_STATUS
             ));
