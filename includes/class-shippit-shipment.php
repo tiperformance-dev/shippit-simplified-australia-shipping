@@ -451,22 +451,31 @@ class Mamis_Shippit_Shipment
         }
 
         // Shipping Details has five slots: _order_trackno, then _order_trackno1 to 4.
-        $freeSlot = null;
+        $slots = ['', '1', '2', '3', '4'];
+        $existing = [];
 
-        foreach (['', '1', '2', '3', '4'] as $slot) {
-            $existing = (string) $order->get_meta('_order_trackno' . $slot, true);
+        foreach ($slots as $slot) {
+            $existing[$slot] = (string) $order->get_meta('_order_trackno' . $slot, true);
 
             // Already saved, e.g. a repeated webhook.
-            if ($existing === $trackingNumber) {
+            if ($existing[$slot] === $trackingNumber) {
                 return false;
-            }
-
-            if ($existing === '' && $freeSlot === null) {
-                $freeSlot = $slot;
             }
         }
 
-        if ($freeSlot === null) {
+        // The Shippit order each saved number came from (slot => PP id). Typed-in numbers have none.
+        $shippitOrder = (string) ($requestData->tracking_number ?? '');
+        $sources = $order->get_meta('_shippit_trackno_sources', true);
+        $sources = is_array($sources) ? $sources : [];
+        $targetSlot = $this->getReplaceableSlot($order, $existing, $sources, $shippitOrder);
+        $replaced = ($targetSlot !== null) ? $existing[$targetSlot] : '';
+
+        if ($targetSlot === null) {
+            $targetSlot = array_search('', $existing, true);
+            $targetSlot = ($targetSlot === false) ? null : (string) $targetSlot;
+        }
+
+        if ($targetSlot === null) {
             $this->log->info(
                 'Courier tracking not saved to Shipping Details, all slots in use',
                 ['order_id' => $order->get_id(), 'courier_job_id' => $trackingNumber]
@@ -475,10 +484,55 @@ class Mamis_Shippit_Shipment
             return false;
         }
 
-        $order->update_meta_data('_order_trackno' . $freeSlot, $trackingNumber);
-        $order->update_meta_data('_order_trackurl' . $freeSlot, $carrier);
+        $order->update_meta_data('_order_trackno' . $targetSlot, $trackingNumber);
+        $order->update_meta_data('_order_trackurl' . $targetSlot, $carrier);
+
+        $sources[$targetSlot] = $shippitOrder;
+        $order->update_meta_data('_shippit_trackno_sources', $sources);
+
+        if ($replaced !== '') {
+            $order->add_order_note(
+                sprintf('Courier tracking number %s replaced by %s (relabelled in Shippit).', $replaced, $trackingNumber),
+                0
+            );
+        }
 
         return true;
+    }
+
+    /**
+     * 2026-11-18 Trello #133 - A slot whose number Shippit has replaced: saved from the same
+     * Shippit order, or from one that is now cancelled ("Cancel label" makes a new Shippit order).
+     * Numbers typed in by staff are never replaced.
+     *
+     * @param  WC_Order $order
+     * @param  array    $existing     slot => saved number
+     * @param  array    $sources      slot => Shippit order (PP id) the number came from
+     * @param  string   $shippitOrder The Shippit order of this webhook
+     * @return string|null
+     */
+    protected function getReplaceableSlot($order, $existing, $sources, $shippitOrder)
+    {
+        foreach ($existing as $slot => $number) {
+            $source = (string) ($sources[$slot] ?? '');
+
+            if ($number === '' || $source === '') {
+                continue;
+            }
+
+            if ($source === $shippitOrder) {
+                return (string) $slot;
+            }
+
+            $response = (new Mamis_Shippit_Api())->call('GET', 'orders/' . rawurlencode($source), null, false);
+            $state = $response->state ?? ($response->response->state ?? '');
+
+            if ($state === 'cancelled') {
+                return (string) $slot;
+            }
+        }
+
+        return null;
     }
 
     /**
