@@ -15,10 +15,11 @@ class Mamis_Shippit_Shipment
     const ERROR_API_KEY_MISMATCH = 'The API Key provided does not match the configured API Key';
     const ERROR_BAD_REQUEST = 'An invalid request was recieved';
     const ERROR_ORDER_MISSING = 'The order requested was not found or has a status that is not available for shipping';
-    const NOTICE_SHIPMENT_STATUS = 'Ignoring the order status update, as we only respond to ready_for_pickup and despatch_in_progress states';
+    const NOTICE_SHIPMENT_STATUS = 'Ignoring the order status update, as we only respond to ready_for_pickup state';
     const SUCCESS_SHIPMENT_CREATED = 'The shipment record was created successfully.';
     const SUCCESS_TRACKING_SAVED = 'The courier tracking number was saved.';
     const NOTICE_TRACKING_UNCHANGED = 'No new courier tracking number to save.';
+    const NOTICE_READY_TO_SHIP_DISABLED = 'Ignoring the webhook request — Ready to Ship tracking is turned off.';
     const SUCCESS_SHIPMENT_SKIPPED = 'Ignoring the webhook request — fulfillment sync is turned off.';
 
     protected $log;
@@ -43,27 +44,27 @@ class Mamis_Shippit_Shipment
         // Check the request API key is present and matches the configured API key
         $this->checkApiKey();
 
-        $this->checkIfFulfillmentSyncIsEnabled();
-
         // Get the JSON data posted
         $requestData = json_decode(file_get_contents('php://input'));
 
-        // Validate the request is valid and in a state that can be used to update shipping details
-        $this->checkRequest($requestData);
+        // 2026-11-21 Trello #133 - Confirm (Ready to Ship) has its own handler and setting,
+        // independent of fulfillment sync. It only saves the tracking number.
+        if (!empty($requestData) && $this->getRequestCurrentState($requestData) == 'despatch_in_progress') {
+            $this->handleReadyToShip($requestData);
+        } else {
+            $this->checkIfFulfillmentSyncIsEnabled();
 
-        $order = $this->getOrder($requestData);
+            // Validate the request is valid and in a state that can be used to update shipping details
+            $this->checkRequest($requestData);
 
-        // Ensure we have a valid order object
-        $this->checkOrder($order);
+            $order = $this->getOrder($requestData);
 
-        // 2026-11-16 Trello #133 - Confirm (Ready to Ship) only saves the connote.
-        // The shipment itself is still recorded at ready_for_pickup (Book).
-        if ($this->getRequestCurrentState($requestData) == 'despatch_in_progress') {
-            $this->saveConfirmTracking($order, $requestData);
+            // Ensure we have a valid order object
+            $this->checkOrder($order);
+
+            // Update the order with the shipment details
+            $this->updateOrder($order, $requestData);
         }
-
-        // Update the order with the shipment details
-        $this->updateOrder($order, $requestData);
 
         // Return a response to the actions completed
         wp_send_json_success(
@@ -391,6 +392,37 @@ class Mamis_Shippit_Shipment
     }
 
     /**
+     * 2026-11-21 Trello #133 - Handle the despatch_in_progress (Confirm / Ready to Ship) webhook.
+     * Gated only by its own setting, not by fulfillment sync. Ends the request.
+     *
+     * @param  object $requestData The webhook request data
+     * @return void
+     */
+    protected function handleReadyToShip($requestData)
+    {
+        if (get_option('wc_settings_shippit_ready_to_ship_tracking_enabled', 'no') !== 'yes') {
+            wp_send_json_success(array('message' => self::NOTICE_READY_TO_SHIP_DISABLED));
+        }
+
+        $this->log->debug(
+            'Ready to Ship Webhook Request Received',
+            [
+                'url' => get_site_url() . '/shippit/shipment_create',
+                'request' => $requestData,
+            ]
+        );
+
+        if (empty($this->getRequestRetailerOrderNumber($requestData)) && empty($this->getRequestRetailerReference($requestData))) {
+            wp_send_json_error(array('message' => self::ERROR_ORDER_MISSING));
+        }
+
+        $order = $this->getOrder($requestData);
+        $this->checkOrder($order);
+
+        $this->saveConfirmTracking($order, $requestData);
+    }
+
+    /**
      * 2026-11-16 Trello #133 - Save the connote from the despatch_in_progress (Confirm) webhook,
      * without marking items as shipped. Ends the request.
      *
@@ -700,7 +732,7 @@ class Mamis_Shippit_Shipment
         }
 
         // Ensure the order update notification is a state that we wish to update against
-        if (!in_array($currentState, ['ready_for_pickup', 'despatch_in_progress'], true)) {
+        if (empty($currentState) || $currentState != 'ready_for_pickup') {
             wp_send_json_success(array(
                 'message' => self::NOTICE_SHIPMENT_STATUS
             ));

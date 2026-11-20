@@ -543,6 +543,21 @@ class Mamis_Shippit_Settings
                 )
             ),
 
+            // 2026-11-21 Trello #133
+            'ready_to_ship_tracking_enabled' => array(
+                'id' => 'wc_settings_shippit_ready_to_ship_tracking_enabled',
+                'title' => __('Save tracking at Ready to Ship', 'woocommerce-shippit'),
+                'class' => 'wc-enhanced-select',
+                'default' => 'no',
+                'type' => 'select',
+                'desc' => 'Save the courier tracking number when the order is confirmed in Shippit (Ready to Ship). Needs Ready to Ship ticked on the webhook in Shippit. Works even when Enabled above is No.',
+                'desc_tip' => true,
+                'options' => array(
+                    'no' => __('No', 'woocommerce-shippit'),
+                    'yes' => __('Yes', 'woocommerce-shippit'),
+                )
+            ),
+
             'fulfillment_tracking_reference' => array(
                 'id' => 'wc_settings_shippit_fulfillment_tracking_reference',
                 'title' => __('Tracking Reference', 'woocommerce-shippit'),
@@ -763,8 +778,10 @@ class Mamis_Shippit_Settings
         $apiService = new Mamis_Shippit_Api($apiKey, $environment);
 
         $requestData = [
+            // Ready to Ship tracking needs the webhook too, even with fulfillment off (Trello #133)
             'webhook_url' => (
                 get_option('wc_settings_shippit_fulfillment_enabled') === 'yes'
+                || get_option('wc_settings_shippit_ready_to_ship_tracking_enabled', 'no') === 'yes'
                     ? sprintf(
                         '%s/shippit/shipment_create?shippit_api_key=%s',
                         get_site_url(),
