@@ -17,6 +17,9 @@ class Mamis_Shippit_Shipment
     const ERROR_ORDER_MISSING = 'The order requested was not found or has a status that is not available for shipping';
     const NOTICE_SHIPMENT_STATUS = 'Ignoring the order status update, as we only respond to ready_for_pickup state';
     const SUCCESS_SHIPMENT_CREATED = 'The shipment record was created successfully.';
+    const SUCCESS_TRACKING_SAVED = 'The courier tracking number was saved.';
+    const NOTICE_TRACKING_UNCHANGED = 'No new courier tracking number to save.';
+    const NOTICE_READY_TO_SHIP_DISABLED = 'Ignoring the webhook request — Ready to Ship tracking is turned off.';
     const SUCCESS_SHIPMENT_SKIPPED = 'Ignoring the webhook request — fulfillment sync is turned off.';
 
     protected $log;
@@ -41,21 +44,27 @@ class Mamis_Shippit_Shipment
         // Check the request API key is present and matches the configured API key
         $this->checkApiKey();
 
-        $this->checkIfFulfillmentSyncIsEnabled();
-
         // Get the JSON data posted
         $requestData = json_decode(file_get_contents('php://input'));
 
-        // Validate the request is valid and in a state that can be used to update shipping details
-        $this->checkRequest($requestData);
+        // 2026-11-21 Trello #133 - Confirm (Ready to Ship) has its own handler and setting,
+        // independent of fulfillment sync. It only saves the tracking number.
+        if (!empty($requestData) && $this->getRequestCurrentState($requestData) == 'despatch_in_progress') {
+            $this->handleReadyToShip($requestData);
+        } else {
+            $this->checkIfFulfillmentSyncIsEnabled();
 
-        $order = $this->getOrder($requestData);
+            // Validate the request is valid and in a state that can be used to update shipping details
+            $this->checkRequest($requestData);
 
-        // Ensure we have a valid order object
-        $this->checkOrder($order);
+            $order = $this->getOrder($requestData);
 
-        // Update the order with the shipment details
-        $this->updateOrder($order, $requestData);
+            // Ensure we have a valid order object
+            $this->checkOrder($order);
+
+            // Update the order with the shipment details
+            $this->updateOrder($order, $requestData);
+        }
 
         // Return a response to the actions completed
         wp_send_json_success(
@@ -378,6 +387,224 @@ class Mamis_Shippit_Shipment
 
         // Update the order shipment metadata
         $order->update_meta_data('_mamis_shippit_shipment', $shipments);
+
+        $this->updateShippingDetailsTracking($order, $requestData);
+    }
+
+    /**
+     * 2026-11-21 Trello #133 - Handle the despatch_in_progress (Confirm / Ready to Ship) webhook.
+     * Gated only by its own setting, not by fulfillment sync. Ends the request.
+     *
+     * @param  object $requestData The webhook request data
+     * @return void
+     */
+    protected function handleReadyToShip($requestData)
+    {
+        if (get_option('wc_settings_shippit_ready_to_ship_tracking_enabled', 'no') !== 'yes') {
+            wp_send_json_success(array('message' => self::NOTICE_READY_TO_SHIP_DISABLED));
+        }
+
+        $this->log->debug(
+            'Ready to Ship Webhook Request Received',
+            [
+                'url' => get_site_url() . '/shippit/shipment_create',
+                'request' => $requestData,
+            ]
+        );
+
+        if (empty($this->getRequestRetailerOrderNumber($requestData)) && empty($this->getRequestRetailerReference($requestData))) {
+            wp_send_json_error(array('message' => self::ERROR_ORDER_MISSING));
+        }
+
+        $order = $this->getOrder($requestData);
+        $this->checkOrder($order);
+
+        $this->saveConfirmTracking($order, $requestData);
+    }
+
+    /**
+     * 2026-11-16 Trello #133 - Save the connote from the despatch_in_progress (Confirm) webhook,
+     * without marking items as shipped. Ends the request.
+     *
+     * @param  WC_Order $order       The woocommerce order
+     * @param  object   $requestData The webhook request data
+     * @return void
+     */
+    protected function saveConfirmTracking($order, $requestData)
+    {
+        if (!$this->updateShippingDetailsTracking($order, $requestData)) {
+            wp_send_json_success(array('message' => self::NOTICE_TRACKING_UNCHANGED));
+        }
+
+        $order->save_meta_data();
+        $order->add_order_note(
+            sprintf(
+                'Courier tracking number %s saved from Shippit (Ready to Ship).',
+                str_replace(' ', '', (string) $requestData->courier_job_id)
+            ),
+            0
+        );
+
+        wp_send_json_success(array('message' => self::SUCCESS_TRACKING_SAVED), 202);
+    }
+
+    /**
+     * 2026-10-27 Trello #133 - Save the courier's tracking number where the Shipping Details
+     * plugin keeps it (_order_trackno / _order_trackurl), so staff no longer type it in.
+     * Saved with the order by updateOrder(), before any Completed email.
+     * A courier with no matching carrier is still saved, as "No Tracking".
+     *
+     * @param  WC_Order $order       The woocommerce order
+     * @param  object   $requestData The webhook request data
+     * @return bool                  True when a new number was added
+     */
+    protected function updateShippingDetailsTracking($order, $requestData)
+    {
+        $trackingNumber = str_replace(' ', '', (string) ($requestData->courier_job_id ?? ''));
+        $courierName = (string) ($requestData->courier_name ?? '');
+        $carrier = $this->getShippingDetailsCarrier($courierName);
+
+        if ($trackingNumber === '') {
+            $this->log->info(
+                'Courier tracking not saved to Shipping Details, no courier_job_id',
+                ['order_id' => $order->get_id(), 'courier_name' => $courierName]
+            );
+
+            return false;
+        }
+
+        if ($carrier === '') {
+            $carrier = 'NOTRACK';
+
+            $this->log->info(
+                'Courier not matched to a Shipping Details carrier, saved as No Tracking',
+                ['order_id' => $order->get_id(), 'courier_name' => $courierName, 'courier_job_id' => $trackingNumber]
+            );
+        }
+
+        // Shipping Details has five slots: _order_trackno, then _order_trackno1 to 4.
+        $slots = ['', '1', '2', '3', '4'];
+        $existing = [];
+
+        foreach ($slots as $slot) {
+            $existing[$slot] = (string) $order->get_meta('_order_trackno' . $slot, true);
+
+            // Already saved, e.g. a repeated webhook.
+            if ($existing[$slot] === $trackingNumber) {
+                return false;
+            }
+        }
+
+        // The Shippit order each saved number came from (slot => PP id). Typed-in numbers have none.
+        $shippitOrder = (string) ($requestData->tracking_number ?? '');
+        $sources = $order->get_meta('_shippit_trackno_sources', true);
+        $sources = is_array($sources) ? $sources : [];
+        $targetSlot = $this->getReplaceableSlot($order, $existing, $sources, $shippitOrder);
+        $replaced = ($targetSlot !== null) ? $existing[$targetSlot] : '';
+
+        if ($targetSlot === null) {
+            $targetSlot = array_search('', $existing, true);
+            $targetSlot = ($targetSlot === false) ? null : (string) $targetSlot;
+        }
+
+        if ($targetSlot === null) {
+            $this->log->info(
+                'Courier tracking not saved to Shipping Details, all slots in use',
+                ['order_id' => $order->get_id(), 'courier_job_id' => $trackingNumber]
+            );
+
+            return false;
+        }
+
+        $order->update_meta_data('_order_trackno' . $targetSlot, $trackingNumber);
+        $order->update_meta_data('_order_trackurl' . $targetSlot, $carrier);
+
+        $sources[$targetSlot] = $shippitOrder;
+        $order->update_meta_data('_shippit_trackno_sources', $sources);
+
+        if ($replaced !== '') {
+            $order->add_order_note(
+                sprintf('Courier tracking number %s replaced by %s (relabelled in Shippit).', $replaced, $trackingNumber),
+                0
+            );
+        }
+
+        return true;
+    }
+
+    /**
+     * 2026-11-18 Trello #133 - A slot whose number Shippit has replaced: saved from the same
+     * Shippit order, or from one that is now cancelled ("Cancel label" makes a new Shippit order).
+     * Numbers typed in by staff are never replaced.
+     *
+     * @param  WC_Order $order
+     * @param  array    $existing     slot => saved number
+     * @param  array    $sources      slot => Shippit order (PP id) the number came from
+     * @param  string   $shippitOrder The Shippit order of this webhook
+     * @return string|null
+     */
+    protected function getReplaceableSlot($order, $existing, $sources, $shippitOrder)
+    {
+        foreach ($existing as $slot => $number) {
+            $source = (string) ($sources[$slot] ?? '');
+
+            if ($number === '' || $source === '') {
+                continue;
+            }
+
+            if ($source === $shippitOrder) {
+                return (string) $slot;
+            }
+
+            $response = (new Mamis_Shippit_Api())->call('GET', 'orders/' . rawurlencode($source), null, false);
+            $state = $response->state ?? ($response->response->state ?? '');
+
+            if ($state === 'cancelled') {
+                return (string) $slot;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * The Shipping Details carrier code for a Shippit courier name, or '' when there is no
+     * match or the carrier is not enabled in Settings > Shipping Details (the order screen
+     * would reset a disabled carrier to "No Tracking" on its next save).
+     *
+     * @param  string $courierName e.g. "Aramex Au Nz", "Couriers Please", "Eparcel", "Uber Direct"
+     * @return string
+     */
+    protected function getShippingDetailsCarrier($courierName)
+    {
+        $name = preg_replace('/[^a-z]/', '', strtolower($courierName));
+        $carrier = '';
+
+        if (strpos($name, 'startrack') !== false) {
+            $carrier = 'STARTRACK';
+        } elseif (strpos($name, 'dhl') !== false) {
+            $carrier = 'DHL';
+        } elseif (preg_match('/eparcel|australiapost|auspost|expresspost|standardpost|internationalpost/', $name)) {
+            $carrier = (strpos($name, 'international') !== false) ? 'AUSTRALIAPOSTINTL' : 'AUSTRALIAPOST';
+        } elseif (preg_match('/aramex|fastway/', $name)) {
+            $carrier = 'ARAMEX';
+        } elseif (strpos($name, 'couriersplease') !== false) {
+            $carrier = 'COURIERSPLEASE';
+        } elseif (strpos($name, 'allied') !== false) {
+            $carrier = 'ALLIED';
+        } elseif (strpos($name, 'tnt') !== false) {
+            $carrier = 'TNTEXPRESS';
+        } elseif (strpos($name, 'bonds') !== false) {
+            $carrier = 'BONDSCOURIERS';
+        } elseif (strpos($name, 'uber') !== false) {
+            $carrier = 'UBER';
+        } elseif (strpos($name, 'yello') !== false) {
+            $carrier = 'YELLO';
+        }
+
+        $enabled = (array) get_option('woo_ship_options', []);
+
+        return ($carrier !== '' && !empty($enabled[$carrier])) ? $carrier : '';
     }
 
     /**
