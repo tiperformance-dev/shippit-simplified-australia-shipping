@@ -489,8 +489,9 @@ class Mamis_Shippit_Shipment
         foreach ($slots as $slot) {
             $existing[$slot] = (string) $order->get_meta('_order_trackno' . $slot, true);
 
-            // Already saved, e.g. a repeated webhook.
-            if ($existing[$slot] === $trackingNumber) {
+            // Already saved, e.g. a repeated webhook, or a scanned AusPost article number
+            // (connote + item suffix, 34MPK0154124 01000935...) typed in by staff.
+            if (stripos(str_replace(' ', '', $existing[$slot]), $trackingNumber) === 0) {
                 return false;
             }
         }
