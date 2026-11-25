@@ -439,7 +439,7 @@ class Mamis_Shippit_Shipment
         $order->save_meta_data();
         $order->add_order_note(
             sprintf(
-                'Courier tracking number %s saved from Shippit (Ready to Ship).',
+                'Tracking number %s saved from Shippit.',
                 str_replace(' ', '', (string) $requestData->courier_job_id)
             ),
             0
@@ -466,7 +466,7 @@ class Mamis_Shippit_Shipment
 
         if ($trackingNumber === '') {
             $this->log->info(
-                'Courier tracking not saved to Shipping Details, no courier_job_id',
+                'Tracking not saved to Shipping Details, no courier_job_id',
                 ['order_id' => $order->get_id(), 'courier_name' => $courierName]
             );
 
@@ -510,7 +510,7 @@ class Mamis_Shippit_Shipment
 
         if ($targetSlot === null) {
             $this->log->info(
-                'Courier tracking not saved to Shipping Details, all slots in use',
+                'Tracking not saved to Shipping Details, all slots in use',
                 ['order_id' => $order->get_id(), 'courier_job_id' => $trackingNumber]
             );
 
@@ -525,10 +525,15 @@ class Mamis_Shippit_Shipment
 
         if ($replaced !== '') {
             $order->add_order_note(
-                sprintf('Courier tracking number %s replaced by %s (relabelled in Shippit).', $replaced, $trackingNumber),
+                sprintf('Tracking number %s replaced by %s (relabelled in Shippit).', $replaced, $trackingNumber),
                 0
             );
         }
+
+        $this->log->info(
+            'Tracking saved to Shipping Details',
+            ['order_id' => $order->get_id(), 'courier_name' => $courierName, 'courier_job_id' => $trackingNumber, 'slot' => $targetSlot, 'replaced' => $replaced]
+        );
 
         return true;
     }
